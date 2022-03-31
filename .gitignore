@@ -1,1 +1,5 @@
 data/homer_out/
+**/.ipynb_checkpoints
+**/archive
+.DS_Store
+**/__pycache__
