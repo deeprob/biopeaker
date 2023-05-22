@@ -37,6 +37,7 @@ if __name__ == "__main__":
     parser.add_argument("--learning_rate", type=float, help="Optimizer learning rate", default=0.005)
     parser.add_argument("--early_stopping_criteria", type=float, help="Early stopping steps", default=10)
     parser.add_argument("--tolerance", type=float, help="tolerance for early stopping", default=1e-4)
+    parser.add_argument("--random_seed", type=int, help="Number of epochs to train", default=7)
     parser.add_argument("--test_batch_size", type=int, help="Batch size for evaluation", default=500)
     parser.add_argument("--pilot", help="Whether it is a pilot study")
     parser.add_argument("--test", help="Evaluate only - model will not train", action="store_true")

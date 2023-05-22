@@ -62,7 +62,7 @@ def initialize_from_cli(cli_args):
         learning_rate=cli_args.learning_rate,
         num_epochs=cli_args.num_epochs,
         tolerance=cli_args.tolerance,
-        seed=1337,
+        seed=cli_args.random_seed,
         
         # Runtime options
         catch_keyboard_interrupt=True,
