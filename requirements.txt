@@ -1,0 +1,10 @@
+torch
+torchvision
+torchaudio
+pyfaidx
+tqdm
+captum
+jupyter
+ipykernel
+pandas
+scikit-learn
