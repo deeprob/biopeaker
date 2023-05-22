@@ -68,7 +68,7 @@ def initialize_from_cli(cli_args):
         catch_keyboard_interrupt=True,
         cuda=True if cli_args.pytorch_device=="cuda" else False,
         expand_filepaths_to_save_dir=True,
-        pilot=cli_args.pilot, # 2% of original dataset
+        pilot=cli_args.pilot,
         train=not cli_args.test,
         test_batch_size=cli_args.test_batch_size
     )
@@ -178,7 +178,7 @@ def train_model(args):
     classifier = args.classifier(args)
 
     if os.path.exists(args.model_state_file):
-        logging.debug(f'Loading previous model found on path ...')
+        logging.debug(f'Loading previous model found on path...')
         classifier.load_state_dict(torch.load(args.model_state_file))
 
     classifier = classifier.to(args.device)
@@ -415,7 +415,7 @@ def read_bed_to_df(bed_file):
     df.columns = ["chrm", "start", "end"]
     return df
 
-def create_tf_dataset_file(peak_bed_path, non_peak_bed_path, split_ratio=(80,10,10)):
+def create_tf_dataset_file(peak_bed_path, non_peak_bed_path, split_ratio=(70,20,10)):
     peak_df = read_bed_to_df(peak_bed_path)
     non_peak_df = read_bed_to_df(non_peak_bed_path)
     peak_df["label"] = 1

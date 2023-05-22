@@ -3,7 +3,7 @@
 #SBATCH --partition=girirajan # TODO: set slurm partition
 #SBATCH --job-name=peaker 
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=20
+#SBATCH --cpus-per-task=5
 #SBATCH --time=400:0:0
 #SBATCH --mem-per-cpu=10G
 #SBATCH --chdir /data6/deepro/computational_pipelines/dl_setup/data # TODO: set dir to data dir
@@ -18,7 +18,7 @@ echo `date` starting job on $HOSTNAME
 peaker_path="/data6/deepro/computational_pipelines/biopeaker/src/peaker.py"
 dataset_path="/data6/deepro/computational_pipelines/dl_setup/data/sample.csv"
 genome_fasta="/data5/deepro/genomes/hg38/GRCh38_no_alt_analysis_set_GCA_000001405.15.fasta"
-save_dir="/data6/deepro/computational_pipelines/dl_setup/data/resnet_new"
+save_dir="/data6/deepro/computational_pipelines/dl_setup/data/resnet"
 
 python $peaker_path resnet $dataset_path ohe $genome_fasta $save_dir
 

@@ -1,2 +1,2 @@
-learning rate to 0.05 - done
-dropout to 0.25 - done
+1. Create peaker compatible dataset function - done
+2. Create model interpretation function
