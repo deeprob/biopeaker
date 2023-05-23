@@ -35,6 +35,7 @@ if __name__ == "__main__":
     parser.add_argument("--dropout_prob", type=float, help="Dropout probability of neural network", default=0.65)
     parser.add_argument("--batch_size", type=int, help="Batch size for training", default=64)
     parser.add_argument("--learning_rate", type=float, help="Optimizer learning rate", default=0.001)
+    parser.add_argument("--early_stopping_function", type=str, help="Early stopping function to use, one of val_aps or val_loss", default="val_aps")
     parser.add_argument("--early_stopping_criteria", type=float, help="Early stopping steps", default=10)
     parser.add_argument("--tolerance", type=float, help="tolerance for early stopping", default=1e-4)
     parser.add_argument("--random_seed", type=int, help="Number of epochs to train", default=7)

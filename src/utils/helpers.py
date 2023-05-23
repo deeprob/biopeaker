@@ -58,6 +58,7 @@ def initialize_from_cli(cli_args):
         
         # Training hyper parameters
         batch_size=cli_args.batch_size,
+        early_stopping_function=cli_args.early_stopping_function,
         early_stopping_criteria=cli_args.early_stopping_criteria,
         learning_rate=cli_args.learning_rate,
         num_epochs=cli_args.num_epochs,
@@ -133,36 +134,35 @@ def update_train_state(args, model, train_state):
     :returns:
         a new train_state
     """
-
+    loss_dict = {
+        "val_aps": {"worse": lambda x,y: x<=y , "better": lambda x,y: x>y},
+        "val_loss": {"worse": lambda x,y: x>=y , "better": lambda x,y: x<y},
+        }
     # Save one model at least
     if train_state['epoch_index'] == 0:
         torch.save(model.state_dict(), train_state['model_filename'])
-        curr_aps = train_state['val_aps'][0]
+        curr_aps = train_state[args.early_stopping_function][0]
         train_state['early_stopping_best_val'] = curr_aps
         train_state['stop_early'] = False
-
     # Save model if performance improved
     elif train_state['epoch_index'] >= 1:
-        apc_tm1, apc_t = train_state['val_aps'][-2:] # looking at the last two validation aps
-
-        # If apc worsened 
-        if apc_t <= train_state['early_stopping_best_val']:
+        apc_tm1, apc_t = train_state[args.early_stopping_function][-2:] # looking at the last two validation aps
+        # If loss worsened 
+        if loss_dict[args.early_stopping_function]["worse"](apc_t, train_state['early_stopping_best_val']):
             # Update step
             train_state['early_stopping_step'] += 1 # updating early stopping info
         # apc increased
         else:
             # Save the best model
-            if apc_t > train_state['early_stopping_best_val']:
+            if loss_dict[args.early_stopping_function]["better"](apc_t, train_state['early_stopping_best_val']):
                 torch.save(model.state_dict(), train_state['model_filename'])
                 train_state['early_stopping_best_val'] = apc_t
 
             # Reset early stopping step
             train_state['early_stopping_step'] = 0
-
         # Stop early ?
         train_state['stop_early'] = \
             train_state['early_stopping_step'] >= args.early_stopping_criteria
-
     return train_state
 
 def train_model(args):
@@ -288,7 +288,7 @@ def train_model(args):
 
             scheduler.step(train_state['val_loss'][-1])
             
-            logging.debug(f"Epoch: {epoch_index}, Validation Loss: {running_loss}, Validation APS: {val_aps}")
+            logging.debug(f"Epoch: {epoch_index}, Validation Loss: {running_loss}, Validation APS: {val_aps}, Early stopping step: {train_state['early_stopping_step']}")
 
             if train_state['stop_early']:
                 logging.debug("Early stopping criterion fulfilled!")

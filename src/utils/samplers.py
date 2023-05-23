@@ -25,9 +25,9 @@ def get_sampler(dataset, weighted=False, mini=False):
     mini_samples = 10000
     
     if weighted:
-        # get the sample weights ;TODO: directly get normalized sample weights that sum to 1 
-        class_counts = dataset._target_df.label.value_counts().values
-        num_samples = int(sum(class_counts))
+        # get the sample weights  
+        class_counts = dataset._target_df.label.value_counts().to_dict()
+        num_samples = len(dataset)
         labels = dataset._target_df.label.values
         class_weights = [num_samples/class_counts[i] for i in range(len(class_counts))]
         sample_weights = np.array([class_weights[labels[i]] for i in range(int(num_samples))])
