@@ -21,6 +21,7 @@ from sklearn.metrics import average_precision_score
 from .samplers import make_train_samplers, get_test_sampler
 from .models import TFPerceptron, TFMLP, ResNet 
 from .datasets import load_data
+from .interpreters import save_linear_model_features
 
 
 #############
@@ -339,6 +340,10 @@ def handle_dirs(dirpath):
         os.makedirs(dirpath)
     return
 
+#################
+# dl evaluation #
+#################
+
 def save_test_pred(filename, y_preds, y_targets, genomic_locs, mode="ab"):
     y_preds = y_preds.cpu().detach().numpy()
     y_targets = y_targets.cpu().detach().numpy()
@@ -404,6 +409,10 @@ def eval_model(args, dataset_split="test"):
                               batch=batch_index)
         test_bar.update()
     
+    # interpret model features at the end for linear
+    if args.model_name == "linear":
+        save_file = os.path.join(args.save_dir, "features.csv")
+        save_linear_model_features(classifier, args.vectorizer, args.homer_saved, save_file)
     return save_file
 
 ####################
