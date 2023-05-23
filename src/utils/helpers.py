@@ -15,6 +15,9 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
+import captum
+from captum.attr import IntegratedGradients
+
 import tqdm
 from sklearn.metrics import average_precision_score
 
@@ -382,6 +385,9 @@ def eval_model(args, dataset_split="test"):
     save_file_replace = f".csv.gz"
     save_filename = os.path.basename(args.model_state_file).replace(".pth", save_file_replace)
     save_file = os.path.join(args.save_dir, save_filename)
+    integrated_gradients = IntegratedGradients(classifier)
+    attribution_array = None
+    genomic_loc_array = None
     
     # Runnning evaluation routine
     test_bar = tqdm.tqdm(desc=f'split={dataset_split}',
@@ -404,6 +410,21 @@ def eval_model(args, dataset_split="test"):
         loss_t = loss.item()
         running_loss += (loss_t - running_loss) / (batch_index + 1)
 
+        # non linear model interpretation
+        if args.model_name != "linear":
+            attributions, approximation_error = integrated_gradients.attribute(batch_dict['x_data'].float(), target=0, internal_batch_size=args.test_batch_size, return_convergence_delta=True, n_steps=500)
+            attributions = torch.sum(attributions, 0).cpu().numpy()
+            if attribution_array is None:
+                attribution_array = attributions
+                genomic_loc = batch_dict["genome_loc"]
+                genomic_loc = np.concatenate((np.array(genomic_loc[0]).reshape(-1,1), genomic_loc[1].cpu().numpy().reshape(-1,1), genomic_loc[1].cpu().numpy().reshape(-1,1)), axis=1)
+                genomic_loc_array = genomic_loc
+            else:
+                attribution_array = np.concatenate((attribution_array, attributions), axis=0)
+                genomic_loc = batch_dict["genome_loc"]
+                genomic_loc = np.concatenate((np.array(genomic_loc[0]).reshape(-1,1), genomic_loc[1].cpu().numpy().reshape(-1,1), genomic_loc[1].cpu().numpy().reshape(-1,1)), axis=1)
+                genomic_loc_array = np.concatenate((genomic_loc_array, genomic_loc), axis=0)
+        
         # update test bar
         test_bar.set_postfix(loss=running_loss, 
                               batch=batch_index)
@@ -413,6 +434,11 @@ def eval_model(args, dataset_split="test"):
     if args.model_name == "linear":
         save_file = os.path.join(args.save_dir, "features.csv")
         save_linear_model_features(classifier, args.vectorizer, args.homer_saved, save_file)
+    else:
+        save_loc_file = os.path.join(args.save_dir, "locations.npy")
+        save_attr_file = os.path.join(args.save_dir, "attributions.npy")
+        np.save(save_loc_file, genomic_loc_array)
+        np.save(save_attr_file, attribution_array)
     return save_file
 
 ####################
