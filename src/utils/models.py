@@ -16,12 +16,8 @@ class TFPerceptron(nn.Module):
         self.bn1 = nn.BatchNorm1d(args.feat_size[1])
         self.fc1 = nn.Linear(args.feat_size[1], 1)
         
-    def forward(self, x_in, apply_sigmoid=False):
+    def forward(self, x_in):
         y_out = self.fc1(self.bn1(torch.flatten(x_in, start_dim=1)))
-        
-        if apply_sigmoid:
-            y_out = torch.sigmoid(y_out)
-        
         return y_out
 
 
@@ -39,14 +35,10 @@ class TFMLP(nn.Module):
         self.bn3 = nn.BatchNorm1d(1000)
         self.fc3 = nn.Linear(1000, 1)
         
-    def forward(self, x_in, apply_sigmoid=False):
-        
+    def forward(self, x_in):
         y_out = F.dropout(F.relu(self.bn2(self.fc1(self.bn1(torch.flatten(x_in, start_dim=1))))), p=self.dropout, training=self.training)
         y_out = F.dropout(F.relu(self.bn3(self.fc2(y_out))), p=self.dropout, training=self.training)  
         y_out = self.fc3(y_out)
-        
-        if apply_sigmoid:
-            y_out = torch.sigmoid(y_out)
         return y_out
 
 
