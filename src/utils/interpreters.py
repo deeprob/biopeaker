@@ -1,10 +1,18 @@
+import os
+import gzip
+
 import numpy as np
 import pandas as pd
+
 import torch
 import torch.nn as nn
 
-import utils.models as utm
-import utils.helpers as uth
+from captum.attr import IntegratedGradients
+
+import tqdm
+
+from .samplers import get_test_sampler, generate_batches
+from .datasets import load_data
 
 
 def save_linear_model_features(model, vectorizer, homer_saved, save_file):
@@ -23,3 +31,101 @@ def save_linear_model_features(model, vectorizer, homer_saved, save_file):
     else:
         raise ValueError(f"Model interpretation not available for linear model with {vectorizer} vectorizer")
     return
+
+#################
+# dl evaluation #
+#################
+
+def save_test_pred(filename, y_preds, y_targets, genomic_locs, mode="ab"):
+    y_preds = y_preds.cpu().detach().numpy()
+    y_targets = y_targets.cpu().detach().numpy()
+    genomic_locs = list(map(lambda x: x.numpy() if type(x)==torch.Tensor else x, genomic_locs))
+    
+    with gzip.open(filename, mode) as f:
+        for y_pred, y_target, chrm, start, end in zip(y_preds, y_targets, genomic_locs[0], genomic_locs[1], genomic_locs[2]):
+            f.write(bytes(f"{y_pred},{y_target},{chrm},{start},{end}\n", "utf-8"))
+    return
+
+def eval_model(args, dataset_split="test"):
+    """
+    classifier initialized before
+    dataset of type TFDataset
+    """
+
+    classifier = args.classifier(args)
+    dataset = load_data(args.dataset, args.genome_fasta, args.vectorizer, k=args.k, homer_saved=args.homer_saved, homer_pwm_motifs=args.homer_pwm_motifs, homer_outdir=args.homer_outdir)
+    
+    # Initializing
+    classifier.load_state_dict(torch.load(args.model_state_file))
+    classifier = classifier.to(args.device)
+    loss_func = nn.BCEWithLogitsLoss()
+
+    dataset.set_split(dataset_split)
+    
+    test_sampler = get_test_sampler(dataset, mini=args.pilot)
+
+    batch_generator = generate_batches(dataset, sampler=test_sampler, shuffle=False, 
+                                       batch_size=args.test_batch_size, 
+                                       device=args.device, drop_last=False)
+
+    running_loss = 0.
+    classifier.eval()
+    mode = "wb"
+    save_file_replace = f".csv.gz"
+    save_filename = os.path.basename(args.model_state_file).replace(".pth", save_file_replace)
+    save_file = os.path.join(args.save_dir, save_filename)
+    integrated_gradients = IntegratedGradients(classifier)
+    attribution_array = None
+    genomic_loc_array = None
+    
+    # Runnning evaluation routine
+    test_bar = tqdm.tqdm(desc=f'split={dataset_split}',
+                          total=len(dataset)//args.test_batch_size, 
+                          position=0, 
+                          leave=True)
+
+    for batch_index, batch_dict in enumerate(batch_generator):
+        # compute the output
+        y_pred = classifier(x_in=batch_dict['x_data'].float())
+        save_test_pred(save_file, 
+                       torch.sigmoid(torch.flatten(y_pred)), 
+                       batch_dict['y_target'], 
+                       batch_dict["genome_loc"], 
+                       mode=mode)
+        mode = "ab" 
+
+        # compute the loss
+        loss = loss_func(y_pred, batch_dict['y_target'].view(-1, 1).float())
+        loss_t = loss.item()
+        running_loss += (loss_t - running_loss) / (batch_index + 1)
+
+        # non linear model interpretation
+        if args.model_name != "linear":
+            attributions, approximation_error = integrated_gradients.attribute(batch_dict['x_data'].float(), target=0, internal_batch_size=args.test_batch_size, return_convergence_delta=True, n_steps=500)
+            attributions = torch.sum(attributions, 1).cpu().numpy()
+            if attribution_array is None:
+                attribution_array = attributions
+                genomic_loc = batch_dict["genome_loc"]
+                genomic_loc = np.concatenate((np.array(genomic_loc[0]).reshape(-1,1), genomic_loc[1].cpu().numpy().reshape(-1,1), genomic_loc[2].cpu().numpy().reshape(-1,1)), axis=1)
+                genomic_loc_array = genomic_loc
+            else:
+                attribution_array = np.concatenate((attribution_array, attributions), axis=0)
+                genomic_loc = batch_dict["genome_loc"]
+                genomic_loc = np.concatenate((np.array(genomic_loc[0]).reshape(-1,1), genomic_loc[1].cpu().numpy().reshape(-1,1), genomic_loc[2].cpu().numpy().reshape(-1,1)), axis=1)
+                genomic_loc_array = np.concatenate((genomic_loc_array, genomic_loc), axis=0)
+        
+        # update test bar
+        test_bar.set_postfix(loss=running_loss, 
+                              batch=batch_index)
+        test_bar.update()
+    
+    # interpret model features at the end for linear
+    if args.model_name == "linear":
+        save_file = os.path.join(args.save_dir, "features.csv")
+        save_linear_model_features(classifier, args.vectorizer, args.homer_saved, save_file)
+    else:
+        save_loc_file = os.path.join(args.save_dir, "locations.npy")
+        save_attr_file = os.path.join(args.save_dir, "attributions.npy")
+        np.save(save_loc_file, genomic_loc_array)
+        np.save(save_attr_file, attribution_array)
+    return save_file

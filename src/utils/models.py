@@ -3,10 +3,13 @@
 
 
 import torch
-import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 
+
+###############
+# classifiers #
+###############
 
 class TFPerceptron(nn.Module):
     
@@ -40,6 +43,12 @@ class TFMLP(nn.Module):
         y_out = F.dropout(F.relu(self.bn3(self.fc2(y_out))), p=self.dropout, training=self.training)  
         y_out = self.fc3(y_out)
         return y_out
+
+
+
+############
+# encoders #
+############
 
 
 class L1Block(nn.Module):
@@ -174,7 +183,7 @@ class ResNet(nn.Module):
         out = self.flayer(out)
         out = self.maxpool3(out)
         out = out.view(-1, 2200)
-        out = F.dropout(F.relu(self.bn4(self.fc1(out))), p=self.dropout, training=self.training)
-        out = F.dropout(F.relu(self.bn5(self.fc2(out))), p=self.dropout, training=self.training)
-        out = self.fc3(out)
+        # out = F.dropout(F.relu(self.bn4(self.fc1(out))), p=self.dropout, training=self.training)
+        # out = F.dropout(F.relu(self.bn5(self.fc2(out))), p=self.dropout, training=self.training)
+        # out = self.fc3(out)
         return out

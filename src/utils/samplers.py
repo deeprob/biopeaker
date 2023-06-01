@@ -3,7 +3,7 @@
 
 import numpy as np
 import torch
-from torch.utils.data import WeightedRandomSampler, RandomSampler, Sampler
+from torch.utils.data import WeightedRandomSampler, RandomSampler, DataLoader
 
 
 class CustomWeightedRandomSampler(WeightedRandomSampler):
@@ -67,3 +67,22 @@ def get_test_sampler(dataset, mini=False):
     else:
         sampler = None    
     return sampler
+
+
+def generate_batches(dataset, sampler, batch_size, shuffle=False,
+                    drop_last=True, device="cpu"):
+    
+    # define the dataloader
+    dataloader = DataLoader(dataset=dataset, batch_size=batch_size,
+                           sampler=sampler, shuffle=shuffle,
+                           drop_last=drop_last, num_workers=0,
+                           pin_memory=False)
+    
+    for data_dict in dataloader:
+        out_data_dict = {}
+        for name, tensor in data_dict.items(): # TODO: Look at datadict.keys(), no need for tensor here
+            if name!= "genome_loc":
+                out_data_dict[name] = data_dict[name].to(device)
+            else:
+                out_data_dict[name] = data_dict[name]
+        yield out_data_dict
