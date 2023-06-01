@@ -15,15 +15,19 @@ from .models import TFPerceptron, TFMLP, ResNet
 # initialize #
 ##############
 
-def get_classifier(model_name):
-    if model_name=="resnet":
-        model=ResNet
-    elif model_name=="mlp":
-        model=TFMLP
-    else:
-        model=TFPerceptron
-    return model
+def get_classifier_object(classifier):
+    classifier_dict = {
+        "mlp": TFMLP, "linear": TFPerceptron
+    }
+    classifier_object = classifier_dict[classifier]
+    return classifier_object
 
+def get_encoder_object(encoder):
+    encoder_dict = {
+        "resnet": ResNet, "homer":None, "kmer":None
+        }
+    encoder_object = encoder_dict[encoder]
+    return encoder_object
 
 def initialize_from_cli(cli_args):
     args = Namespace(
@@ -41,7 +45,8 @@ def initialize_from_cli(cli_args):
         
         # Model hyper parameters
         model_name=cli_args.model_name,
-        classifier=get_classifier(cli_args.model_name),
+        encoder=get_encoder_object(cli_args.vectorizer),
+        classifier=get_classifier_object(cli_args.model_name),
         dropout_prob=cli_args.dropout_prob,
         
         # Training hyper parameters
