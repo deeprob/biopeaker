@@ -1,2 +1,9 @@
-1. Create peaker compatible dataset function - done
-2. Create model interpretation function
+1. Divide encoder and classifier
+    - change model
+    - change training routine
+    - change peaker interface
+    - test on data
+2. Add user input features to model
+    - new file with additional features for model
+    - peaker takes that as additional input
+
