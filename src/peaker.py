@@ -42,7 +42,7 @@ if __name__ == "__main__":
     parser.add_argument("--tolerance", type=float, help="tolerance for early stopping", default=1e-4)
     parser.add_argument("--random_seed", type=int, help="Number of epochs to train", default=7)
     parser.add_argument("--test_batch_size", type=int, help="Batch size for evaluation", default=64)
-    parser.add_argument("--pilot", help="Whether it is a pilot study")
+    parser.add_argument("--pilot", help="Whether it is a pilot study", action="store_true")
     parser.add_argument("--test", help="Evaluate only - model will not train", action="store_true")
     parser.add_argument("--integrated_gradients", help="Calculate integrated gradients", action="store_true")
 

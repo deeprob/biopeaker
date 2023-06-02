@@ -29,9 +29,10 @@ def make_train_state(args):
             'val_aps': [],
             'test_loss': -1,
             'test_aps': -1,
-            'model_filename': args.model_state_file}
+            'encoder_filename': args.encoder_state_file,
+            'classifier_filename':args.classifier_state_file}
 
-def update_train_state(args, model, train_state):
+def update_train_state(args, encoder, classifier, train_state):
     """Handle the training state updates. Determines whether to stop model training early
 
     Components:
@@ -50,7 +51,9 @@ def update_train_state(args, model, train_state):
         }
     # Save one model at least
     if train_state['epoch_index'] == 0:
-        torch.save(model.state_dict(), train_state['model_filename'])
+        if args.encoder:
+            torch.save(encoder.state_dict(), train_state['encoder_filename'])
+        torch.save(classifier.state_dict(), train_state['classifier_filename'])
         curr_aps = train_state[args.early_stopping_function][0]
         train_state['early_stopping_best_val'] = curr_aps
         train_state['stop_early'] = False
@@ -65,7 +68,9 @@ def update_train_state(args, model, train_state):
         else:
             # Save the best model
             if loss_dict[args.early_stopping_function]["better"](apc_t, train_state['early_stopping_best_val']):
-                torch.save(model.state_dict(), train_state['model_filename'])
+                if args.encoder:
+                    torch.save(encoder.state_dict(), train_state['encoder_filename'])
+                torch.save(classifier.state_dict(), train_state['classifier_filename'])
                 train_state['early_stopping_best_val'] = apc_t
 
             # Reset early stopping step
@@ -244,7 +249,9 @@ def train_model(args):
             os.remove(tmp_filename)
         
             train_state['val_aps'].append(val_aps)
-            train_state = update_train_state(args=args, model=classifier,
+            train_state = update_train_state(args=args,
+                                             encoder=encoder,
+                                             classifier=classifier,
                                              train_state=train_state)
 
             if encoder:

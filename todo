@@ -1,9 +1,10 @@
 1. Divide encoder and classifier
     - change model : done
-    - change training routine : 
+    - change training routine : done
     - change peaker interface : done
-    - train on data
-    - change test routine
+    - train on data : done
+    - change test routine : done
+    - add integrated gradients function with testing routine
     - test on data
 2. Add user input features to model
     - new file with additional features for model

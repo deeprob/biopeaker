@@ -36,6 +36,20 @@ def save_linear_model_features(model, vectorizer, homer_saved, save_file):
 # dl evaluation #
 #################
 
+class Model(nn.Module):
+    def __init__(self, encoder, classifier):
+        super(Model, self).__init__()
+        self.encoder = encoder
+        self.classifier = classifier
+    
+    def forward(self, x_in):
+        if self.encoder:
+            x_in = self.encoder(x_in)
+        y_out = self.classifier(x_in)
+        y_out = torch.sigmoid(torch.flatten(y_out))
+        return y_out
+    
+
 def save_test_pred(filename, y_preds, y_targets, genomic_locs, mode="ab"):
     y_preds = y_preds.cpu().detach().numpy()
     y_targets = y_targets.cpu().detach().numpy()
@@ -45,6 +59,7 @@ def save_test_pred(filename, y_preds, y_targets, genomic_locs, mode="ab"):
         for y_pred, y_target, chrm, start, end in zip(y_preds, y_targets, genomic_locs[0], genomic_locs[1], genomic_locs[2]):
             f.write(bytes(f"{y_pred},{y_target},{chrm},{start},{end}\n", "utf-8"))
     return
+
 
 def eval_model(args, dataset_split="test"):
     """
@@ -59,12 +74,14 @@ def eval_model(args, dataset_split="test"):
     encoder = args.encoder()
     if encoder:
         encoder.load_state_dict(torch.load(args.encoder_state_file))
-        encoder = encoder.to(args.device)
     
     # Initializing classifier
     classifier = args.classifier(args)
-    classifier.load_state_dict(torch.load(args.model_state_file))
-    classifier = classifier.to(args.device)
+    classifier.load_state_dict(torch.load(args.classifier_state_file))
+
+    # get combined model
+    model = Model(encoder, classifier)
+    model = model.to(args.device)
 
     # Defining loss function
     loss_func = nn.BCEWithLogitsLoss()
@@ -79,15 +96,13 @@ def eval_model(args, dataset_split="test"):
 
     ##### Evaluation Routine #####
     running_loss = 0.
-    if encoder:
-        encoder.eval()
-    classifier.eval()
+    model.eval()
     mode = "wb"
     save_filename = f"{args.encoder_name}_{args.classifier_name}.csv.gz"
     save_file = os.path.join(args.save_dir, save_filename)
 
     if args.integrated_gradients:
-        integrated_gradients = IntegratedGradients(classifier)
+        integrated_gradients = IntegratedGradients(model)
         attribution_array = None
         genomic_loc_array = None
     
@@ -99,16 +114,16 @@ def eval_model(args, dataset_split="test"):
 
     for batch_index, batch_dict in enumerate(batch_generator):
         # compute the output
-        y_pred = classifier(x_in=batch_dict['x_data'].float())
+        y_pred = model(x_in=batch_dict['x_data'].float())
         save_test_pred(save_file, 
-                       torch.sigmoid(torch.flatten(y_pred)), 
+                       torch.flatten(y_pred), 
                        batch_dict['y_target'], 
                        batch_dict["genome_loc"], 
                        mode=mode)
         mode = "ab" 
 
         # compute the loss
-        loss = loss_func(y_pred, batch_dict['y_target'].view(-1, 1).float())
+        loss = loss_func(y_pred, batch_dict['y_target'].float())
         loss_t = loss.item()
         running_loss += (loss_t - running_loss) / (batch_index + 1)
 
@@ -136,7 +151,7 @@ def eval_model(args, dataset_split="test"):
     if args.classifier_name == "linear":
         if args.encoder_name == "homer":
             save_file = os.path.join(args.save_dir, "features.csv")
-            save_linear_model_features(classifier, args.vectorizer, args.homer_saved, save_file)
+            save_linear_model_features(model, args.vectorizer, args.homer_saved, save_file)
 
     if args.integrated_gradients:
         save_loc_file = os.path.join(args.save_dir, "locations.npy")
