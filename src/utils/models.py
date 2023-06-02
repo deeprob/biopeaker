@@ -14,10 +14,10 @@ import torch.nn.functional as F
 class TFPerceptron(nn.Module):
     
     def __init__(self, args):
-        
+        # dropout pron only added for consistency
         super(TFPerceptron, self).__init__()
-        self.bn1 = nn.BatchNorm1d(args.feat_size[1])
-        self.fc1 = nn.Linear(args.feat_size[1], 1)
+        self.bn1 = nn.BatchNorm1d(args.feat_size)
+        self.fc1 = nn.Linear(args.feat_size, 1)
         
     def forward(self, x_in):
         y_out = self.fc1(self.bn1(torch.flatten(x_in, start_dim=1)))
@@ -31,8 +31,8 @@ class TFMLP(nn.Module):
         super(TFMLP, self).__init__()
         self.dropout = args.dropout_prob
 
-        self.bn1 = nn.BatchNorm1d(args.feat_size[1])
-        self.fc1 = nn.Linear(args.feat_size[1], 1000)
+        self.bn1 = nn.BatchNorm1d(args.feat_size)
+        self.fc1 = nn.Linear(args.feat_size, 1000)
         self.bn2 = nn.BatchNorm1d(1000)
         self.fc2 = nn.Linear(1000, 1000)
         self.bn3 = nn.BatchNorm1d(1000)
@@ -127,10 +127,8 @@ class L4Block(nn.Module):
 
 
 class ResNet(nn.Module):
-    def __init__(self, args):
+    def __init__(self):
         super(ResNet, self).__init__()
-
-        self.dropout = args.dropout_prob
 
         self.conv1 = nn.Conv2d(4, 48, (3, 1), stride=(1, 1), padding=(1, 0))
         self.bn1 = nn.BatchNorm2d(48)
@@ -171,7 +169,7 @@ class ResNet(nn.Module):
 
 
     def forward(self, x_in):
-        x_in = x_in.view(-1, 4, 500, 1)  # batch_size x 4 x 1000 x 1 [4 channels]
+        x_in = x_in.view(-1, 4, 500, 1)  # batch_size x 4 x 500 x 1 [4 channels]
 
         out = self.prelayer(x_in)
         out = self.layer1(out)
@@ -183,7 +181,4 @@ class ResNet(nn.Module):
         out = self.flayer(out)
         out = self.maxpool3(out)
         out = out.view(-1, 2200)
-        # out = F.dropout(F.relu(self.bn4(self.fc1(out))), p=self.dropout, training=self.training)
-        # out = F.dropout(F.relu(self.bn5(self.fc2(out))), p=self.dropout, training=self.training)
-        # out = self.fc3(out)
         return out

@@ -19,36 +19,47 @@ def get_classifier_object(classifier):
     classifier_dict = {
         "mlp": TFMLP, "linear": TFPerceptron
     }
-    classifier_object = classifier_dict[classifier]
-    return classifier_object
+    return classifier_dict[classifier]
 
 def get_encoder_object(encoder):
     encoder_dict = {
         "resnet": ResNet, "homer":None, "kmer":None
+        } 
+    return encoder_dict[encoder]
+
+def get_encoder_feature_size(encoder):
+    encoder_feat_dict = {
+        "resnet": 2200, "homer":802, "kmer":None
         }
-    encoder_object = encoder_dict[encoder]
-    return encoder_object
+    return encoder_feat_dict[encoder]
+
+def get_vectorizer(encoder):
+    vectorizer_dict = {
+        "resnet": "ohe", "homer": "homer", "kmer":"kmer"
+    }
+    return vectorizer_dict[encoder]
 
 def initialize_from_cli(cli_args):
     args = Namespace(
         # Data and Path information
         dataset=cli_args.dataset,
-        vectorizer=cli_args.vectorizer,
         genome_fasta=cli_args.genome_fasta,
+        save_dir=cli_args.save_dir,
+        # encoder information
+        encoder_name=cli_args.encoder,
+        encoder=get_encoder_object(cli_args.encoder),
+        encoder_state_file=f'{cli_args.encoder}.pth',
         homer_saved=cli_args.homer_saved,
         homer_pwm_motifs=cli_args.homer_pwm_motifs, 
         homer_outdir=cli_args.homer_outdir,
         k=cli_args.kmer,
-        model_state_file=f'{cli_args.model_name}.pth',
-        save_dir=cli_args.save_dir,
-        feat_size=(4, 500) if cli_args.model_name=="resnet" else (1, 802),
-        
-        # Model hyper parameters
-        model_name=cli_args.model_name,
-        encoder=get_encoder_object(cli_args.vectorizer),
-        classifier=get_classifier_object(cli_args.model_name),
+        feat_size=get_encoder_feature_size(cli_args.encoder),
+        vectorizer=get_vectorizer(cli_args.encoder),
+        # classifier information
+        classifier_name=cli_args.classifier,
+        classifier=get_classifier_object(cli_args.classifier),
+        classifier_state_file=f'{cli_args.classifier}.pth',
         dropout_prob=cli_args.dropout_prob,
-        
         # Training hyper parameters
         batch_size=cli_args.batch_size,
         early_stopping_function=cli_args.early_stopping_function,
@@ -57,21 +68,22 @@ def initialize_from_cli(cli_args):
         num_epochs=cli_args.num_epochs,
         tolerance=cli_args.tolerance,
         seed=cli_args.random_seed,
-        
         # Runtime options
         catch_keyboard_interrupt=True,
         cuda=True if cli_args.pytorch_device=="cuda" else False,
         expand_filepaths_to_save_dir=True,
         pilot=cli_args.pilot,
         train=not cli_args.test,
-        test_batch_size=cli_args.test_batch_size
+        test_batch_size=cli_args.test_batch_size,
+        integrated_gradients=cli_args.integrated_gradients,
     )
 
     if not torch.cuda.is_available():
         args.cuda = False
 
     if args.expand_filepaths_to_save_dir:
-        args.model_state_file = os.path.join(args.save_dir, args.model_state_file)
+        args.encoder_state_file = os.path.join(args.save_dir, args.encoder_state_file)
+        args.classifier_state_file = os.path.join(args.save_dir, args.classifier_state_file)
     
     args.device = torch.device("cuda" if args.cuda else "cpu")
 

@@ -52,31 +52,44 @@ def eval_model(args, dataset_split="test"):
     dataset of type TFDataset
     """
 
-    classifier = args.classifier(args)
+    # Loading the dataset
     dataset = load_data(args.dataset, args.genome_fasta, args.vectorizer, k=args.k, homer_saved=args.homer_saved, homer_pwm_motifs=args.homer_pwm_motifs, homer_outdir=args.homer_outdir)
     
-    # Initializing
+    # Initializing encoder
+    encoder = args.encoder()
+    if encoder:
+        encoder.load_state_dict(torch.load(args.encoder_state_file))
+        encoder = encoder.to(args.device)
+    
+    # Initializing classifier
+    classifier = args.classifier(args)
     classifier.load_state_dict(torch.load(args.model_state_file))
     classifier = classifier.to(args.device)
+
+    # Defining loss function
     loss_func = nn.BCEWithLogitsLoss()
 
+    # Making samplers
     dataset.set_split(dataset_split)
-    
     test_sampler = get_test_sampler(dataset, mini=args.pilot)
 
     batch_generator = generate_batches(dataset, sampler=test_sampler, shuffle=False, 
                                        batch_size=args.test_batch_size, 
                                        device=args.device, drop_last=False)
 
+    ##### Evaluation Routine #####
     running_loss = 0.
+    if encoder:
+        encoder.eval()
     classifier.eval()
     mode = "wb"
-    save_file_replace = f".csv.gz"
-    save_filename = os.path.basename(args.model_state_file).replace(".pth", save_file_replace)
+    save_filename = f"{args.encoder_name}_{args.classifier_name}.csv.gz"
     save_file = os.path.join(args.save_dir, save_filename)
-    integrated_gradients = IntegratedGradients(classifier)
-    attribution_array = None
-    genomic_loc_array = None
+
+    if args.integrated_gradients:
+        integrated_gradients = IntegratedGradients(classifier)
+        attribution_array = None
+        genomic_loc_array = None
     
     # Runnning evaluation routine
     test_bar = tqdm.tqdm(desc=f'split={dataset_split}',
@@ -99,8 +112,8 @@ def eval_model(args, dataset_split="test"):
         loss_t = loss.item()
         running_loss += (loss_t - running_loss) / (batch_index + 1)
 
-        # non linear model interpretation
-        if args.model_name != "linear":
+        # model interpretation with integrated gradients
+        if args.integrated_gradients:
             attributions, approximation_error = integrated_gradients.attribute(batch_dict['x_data'].float(), target=0, internal_batch_size=args.test_batch_size, return_convergence_delta=True, n_steps=500)
             attributions = torch.sum(attributions, 1).cpu().numpy()
             if attribution_array is None:
@@ -119,11 +132,13 @@ def eval_model(args, dataset_split="test"):
                               batch=batch_index)
         test_bar.update()
     
-    # interpret model features at the end for linear
-    if args.model_name == "linear":
-        save_file = os.path.join(args.save_dir, "features.csv")
-        save_linear_model_features(classifier, args.vectorizer, args.homer_saved, save_file)
-    else:
+    # interpret model features at the end for linear classifier with homer features
+    if args.classifier_name == "linear":
+        if args.encoder_name == "homer":
+            save_file = os.path.join(args.save_dir, "features.csv")
+            save_linear_model_features(classifier, args.vectorizer, args.homer_saved, save_file)
+
+    if args.integrated_gradients:
         save_loc_file = os.path.join(args.save_dir, "locations.npy")
         save_attr_file = os.path.join(args.save_dir, "attributions.npy")
         np.save(save_loc_file, genomic_loc_array)

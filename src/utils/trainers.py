@@ -93,38 +93,54 @@ def get_n_params(model):
 
 def train_model(args):
     # Logger config
-    logging.basicConfig(filename=os.path.join(args.save_dir, f"{args.model_name}.log"), filemode='w', level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p',)
-    # Load the dataset
+    logging.basicConfig(filename=os.path.join(args.save_dir, f"{args.encoder_name}_{args.classifier_name}.log"), filemode='w', level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p',)
+    
+    # Loading the dataset
     logging.debug(f'Loading dataset and creating vectorizer...')
     dataset = load_data(args.dataset, args.genome_fasta, args.vectorizer, k=args.k, homer_saved=args.homer_saved, homer_pwm_motifs=args.homer_pwm_motifs, homer_outdir=args.homer_outdir)    
     logging.debug(f'Dataset loaded.')
 
-    # Initializing model
-    logging.debug(f'Initializing model...')
+    # Initializing encoder
+    logging.debug(f'Initializing encoder...')
+    encoder = args.encoder()
+    if encoder:
+        encoder_params = get_n_params(encoder)
+        logging.debug(f"The encoder has {encoder_params} parameters.")
+        if os.path.exists(args.encoder_state_file):
+            logging.debug(f'Loading previous encoder found on path...')
+            encoder.load_state_dict(torch.load(args.encoder_state_file))
+        encoder = encoder.to(args.device)
+        logging.debug(f'Encoder initialized on {args.device}.')
+
+    # Initializing classifier
+    logging.debug(f'Initializing classifier...')
     classifier = args.classifier(args)
-
-    if os.path.exists(args.model_state_file):
-        logging.debug(f'Loading previous model found on path...')
-        classifier.load_state_dict(torch.load(args.model_state_file))
-
+    classifier_params = get_n_params(classifier)
+    logging.debug(f"The classifier has {classifier_params} parameters.")
+    if os.path.exists(args.classifier_state_file):
+        logging.debug(f'Loading previous classifier found on path...')
+        classifier.load_state_dict(torch.load(args.classifier_state_file)) 
     classifier = classifier.to(args.device)
     logging.debug(f'Model initialized on {args.device}.')
 
-    model_params = get_n_params(classifier)
-    logging.debug(f"The model has {model_params} parameters.")
-        
     # Defining loss function, optimizer and scheduler
     loss_func = nn.BCEWithLogitsLoss()
-    optimizer = optim.Adam(classifier.parameters(), lr=args.learning_rate, eps=1e-7)
+    if encoder:
+        enc_optimizer = optim.Adam(encoder.parameters(), lr=args.learning_rate, eps=1e-7)
+    cls_optimizer = optim.Adam(classifier.parameters(), lr=args.learning_rate, eps=1e-7)
     # adjusting the learning rate for better performance
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer=optimizer,
+    if encoder:
+        enc_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer=enc_optimizer,
+                                                        mode='min', factor=0.5,
+                                                        patience=1)   
+    cls_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer=cls_optimizer,
                                                      mode='min', factor=0.5,
                                                      patience=1)    
-    logging.debug(f"Model learning rate set to {args.learning_rate}.")
+    logging.debug(f"Model learning rate started with {args.learning_rate}.")
 
     # Making samplers
     train_sampler, valid_sampler = make_train_samplers(dataset, args)
-    logging.debug(f"Training {model_params} parameters with {train_sampler.num_samples} instances at a rate of {round(train_sampler.num_samples/model_params, 6)} instances per parameter.")
+    logging.debug(f"Training model with {train_sampler.num_samples} instances.")
     logging.debug(f"Model batch size set to {args.batch_size}.")
 
     # Defining initial train state
@@ -145,6 +161,8 @@ def train_model(args):
                                                batch_size=args.batch_size, 
                                                device=args.device)
             running_loss = 0.0
+            if encoder:
+                encoder.train()
             classifier.train()
 
             for batch_index, batch_dict in enumerate(batch_generator):
@@ -153,10 +171,16 @@ def train_model(args):
 
                 # --------------------------------------
                 # step 1. zero the gradients
-                optimizer.zero_grad()
+                if encoder:
+                    enc_optimizer.zero_grad()
+                cls_optimizer.zero_grad()
 
                 # step 2. compute the output
-                y_pred = classifier(x_in=batch_dict['x_data'].float())
+                if encoder:
+                    feat = encoder(x_in=batch_dict['x_data'].float())
+                    y_pred = classifier(x_in=feat)
+                else:
+                    y_pred = classifier(x_in=batch_dict['x_data'].float())
 
                 # step 3. compute the loss
                 loss = loss_func(y_pred, batch_dict['y_target'].view(-1, 1).float())
@@ -165,8 +189,11 @@ def train_model(args):
                 loss.backward()
 
                 # step 5. use optimizer to take gradient step
-                optimizer.step()
+                if encoder:
+                    enc_optimizer.step()
+                cls_optimizer.step()
                 # -----------------------------------------
+
                 # compute the loss for update
                 loss_t = loss.item()
                 running_loss += (loss_t - running_loss) / (batch_index + 1)
@@ -184,20 +211,28 @@ def train_model(args):
             running_loss = 0.
             tmp_filename = os.path.join(args.save_dir, f"validation_file.tmp")
             tmp_file = open(tmp_filename, "wb")
+            encoder.eval()
             classifier.eval()
 
             for batch_index, batch_dict in enumerate(batch_generator):
 
-                # compute the output
-                y_pred = classifier(x_in=batch_dict['x_data'].float())
+                # the evaluation routine as follows:
+
+                # --------------------------------------
+                # step 1. compute the output
+                if encoder:
+                    feat = encoder(x_in=batch_dict['x_data'].float())
+                    y_pred = classifier(x_in=feat)
+                else:
+                    y_pred = classifier(x_in=batch_dict['x_data'].float())
                 y_target = batch_dict['y_target'].view(-1, 1).float()
 
-                # step 3. compute the loss
+                # step 2. compute the loss
                 loss = loss_func(y_pred, y_target)
                 loss_t = loss.item()
                 running_loss += (loss_t - running_loss) / (batch_index + 1)
 
-                # save data for computing aps
+                # step 3. save data for computing aps
                 for yp, yt in zip(torch.sigmoid(torch.flatten(y_pred)).cpu().detach().numpy(), torch.flatten(y_target).cpu().detach().numpy()):
                     tmp_file.write(bytes(f"{yp},{yt}\n", "utf-8"))
 
@@ -212,7 +247,9 @@ def train_model(args):
             train_state = update_train_state(args=args, model=classifier,
                                              train_state=train_state)
 
-            scheduler.step(train_state['val_loss'][-1])
+            if encoder:
+                enc_scheduler.step(train_state['val_loss'][-1])
+            cls_scheduler.step(train_state['val_loss'][-1])
             
             logging.debug(f"Epoch: {epoch_index}, Validation Loss: {running_loss}, Validation APS: {val_aps}, Early stopping step: {train_state['early_stopping_step']}")
 

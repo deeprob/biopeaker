@@ -1,9 +1,11 @@
 1. Divide encoder and classifier
-    - change model
-    - change training routine
-    - change peaker interface
+    - change model : done
+    - change training routine : 
+    - change peaker interface : done
+    - train on data
+    - change test routine
     - test on data
 2. Add user input features to model
     - new file with additional features for model
-    - peaker takes that as additional input
+    - peaker takes that as additional input file
 
