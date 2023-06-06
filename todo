@@ -4,8 +4,8 @@
     - change peaker interface : done
     - train on data : done
     - change test routine : done
-    - add integrated gradients function with testing routine
-    - test on data
+    - add integrated gradients function with testing routine : done
+    - test on data : done
 2. Add user input features to model
     - new file with additional features for model
     - peaker takes that as additional input file

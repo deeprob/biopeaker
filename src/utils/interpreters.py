@@ -129,7 +129,7 @@ def eval_model(args, dataset_split="test"):
 
         # model interpretation with integrated gradients
         if args.integrated_gradients:
-            attributions, approximation_error = integrated_gradients.attribute(batch_dict['x_data'].float(), target=0, internal_batch_size=args.test_batch_size, return_convergence_delta=True, n_steps=500)
+            attributions, approximation_error = integrated_gradients.attribute(batch_dict['x_data'].float(), internal_batch_size=args.test_batch_size, return_convergence_delta=True, n_steps=500)
             attributions = torch.sum(attributions, 1).cpu().numpy()
             if attribution_array is None:
                 attribution_array = attributions
