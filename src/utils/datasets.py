@@ -213,7 +213,7 @@ class GenomeVectorizer(GenomeVocabulary):
 class TFDataset(Dataset):
     """A Class that contains all genomic coordinates with their labels"""
     
-    def __init__(self, tf_df, vectorizer):
+    def __init__(self, tf_df, vectorizer, addn_feat_df):
         """
         tf_df: A dataframe with 5 columns, chrm, start, end, label, split
         vectorizer: The object that vectorizes this dataset going from genomic coordinates to sequence to numerical encodings
@@ -221,20 +221,24 @@ class TFDataset(Dataset):
         
         self.tf_df = tf_df
         self._vectorizer = vectorizer
+        self.addn_df = addn_feat_df
         
         self.set_split("train")
         pass
     
     @classmethod
     def load_dataset_and_vectorizer_from_path(
-        cls, tf_df_path, genome_path, nrows=None, vectorizer="ohe", k=5, homer_saved="", homer_pwm_motifs="", homer_outdir=""):
+        cls, tf_df_path, genome_path, addn_feat_path="", nrows=None, vectorizer="ohe", k=5, homer_saved="", homer_pwm_motifs="", homer_outdir=""):
         """
         tf_df_path: path to the tf csv file with genomic locations and annotations  
         genome_path: path to the genome fasta file of the organism
         """
         tf_df = pd.read_csv(tf_df_path, nrows=nrows)
+        addn_df = pd.DataFrame()
+        if addn_feat_path:
+            addn_df = pd.read_csv(addn_feat_path, index_col=0)
         vectorizer = GenomeVectorizer.load_from_path(genome_path, vectorizer=vectorizer, k=k, homer_saved=homer_saved, homer_pwm_motifs=homer_pwm_motifs, homer_outdir=homer_outdir, roi_bed=tf_df_path)
-        return cls(tf_df, vectorizer)
+        return cls(tf_df, vectorizer, addn_df)
     
     def set_split(self, split="train"):
         self._target_split = split
@@ -250,7 +254,9 @@ class TFDataset(Dataset):
         chrm, start, end = row.chrm, row.start, row.end
         tf_vector = self._vectorizer.vectorize(row.chrm, row.start, row.end)
         tf_label = row.label
+        seq_id = "_".join([chrm, str(start), str(end)])
         return {"x_data": tf_vector,
+                "a_data": self.addn_df.loc[seq_id].values.reshape(1, -1) if not self.addn_df.empty else np.array([]),
                 "y_target": tf_label,
                 "genome_loc": (chrm, start, end)}
     
@@ -270,9 +276,10 @@ class TFDataset(Dataset):
         return (4, seq_length) if self._vectorizer.vectorizer_name=="ohe" else self._vectorizer.feature_size
 
 
-def load_data(tf_df_path, genome_fasta, vectorizer, k=5, homer_saved="", homer_pwm_motifs="", homer_outdir=""):
+def load_data(tf_df_path, genome_fasta, vectorizer, addn_feat_path="", k=5, homer_saved="", homer_pwm_motifs="", homer_outdir=""):
     tf_dataset = TFDataset.load_dataset_and_vectorizer_from_path(tf_df_path, 
-                                                              genome_fasta, 
+                                                              genome_fasta,
+                                                              addn_feat_path=addn_feat_path,
                                                               vectorizer=vectorizer, 
                                                               k=k, homer_saved=homer_saved, homer_pwm_motifs=homer_pwm_motifs, homer_outdir=homer_outdir)
     return tf_dataset

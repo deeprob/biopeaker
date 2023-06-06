@@ -1,8 +1,8 @@
 import os
 import logging
+import copy
 
 import pandas as pd
-
 from sklearn.metrics import average_precision_score
 
 import torch
@@ -102,7 +102,7 @@ def train_model(args):
     
     # Loading the dataset
     logging.debug(f'Loading dataset and creating vectorizer...')
-    dataset = load_data(args.dataset, args.genome_fasta, args.vectorizer, k=args.k, homer_saved=args.homer_saved, homer_pwm_motifs=args.homer_pwm_motifs, homer_outdir=args.homer_outdir)    
+    dataset = load_data(args.dataset, args.genome_fasta, args.vectorizer, addn_feat_path=args.addn_feat_dataset, k=args.k, homer_saved=args.homer_saved, homer_pwm_motifs=args.homer_pwm_motifs, homer_outdir=args.homer_outdir)    
     logging.debug(f'Dataset loaded.')
 
     # Initializing encoder
@@ -114,6 +114,7 @@ def train_model(args):
         if os.path.exists(args.encoder_state_file):
             logging.debug(f'Loading previous encoder found on path...')
             encoder.load_state_dict(torch.load(args.encoder_state_file))
+            init_encoder_dict = copy.deepcopy(encoder.state_dict())
         encoder = encoder.to(args.device)
         logging.debug(f'Encoder initialized on {args.device}.')
 
@@ -131,13 +132,15 @@ def train_model(args):
     # Defining loss function, optimizer and scheduler
     loss_func = nn.BCEWithLogitsLoss()
     if encoder:
-        enc_optimizer = optim.Adam(encoder.parameters(), lr=args.learning_rate, eps=1e-7)
+        if args.train_encoder:
+            enc_optimizer = optim.Adam(encoder.parameters(), lr=args.learning_rate, eps=1e-7)
     cls_optimizer = optim.Adam(classifier.parameters(), lr=args.learning_rate, eps=1e-7)
     # adjusting the learning rate for better performance
     if encoder:
-        enc_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer=enc_optimizer,
-                                                        mode='min', factor=0.5,
-                                                        patience=1)   
+        if args.train_encoder:
+            enc_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer=enc_optimizer,
+                                                            mode='min', factor=0.5,
+                                                            patience=1)   
     cls_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer=cls_optimizer,
                                                      mode='min', factor=0.5,
                                                      patience=1)    
@@ -167,7 +170,10 @@ def train_model(args):
                                                device=args.device)
             running_loss = 0.0
             if encoder:
-                encoder.train()
+                if args.train_encoder:
+                    encoder.train()
+                else:
+                    encoder.eval()
             classifier.train()
 
             for batch_index, batch_dict in enumerate(batch_generator):
@@ -177,15 +183,21 @@ def train_model(args):
                 # --------------------------------------
                 # step 1. zero the gradients
                 if encoder:
-                    enc_optimizer.zero_grad()
+                    if args.train_encoder:
+                        enc_optimizer.zero_grad()
                 cls_optimizer.zero_grad()
 
                 # step 2. compute the output
+                seq_feats = batch_dict['x_data'].float()
+                add_feats = batch_dict['a_data'].float()
                 if encoder:
-                    feat = encoder(x_in=batch_dict['x_data'].float())
-                    y_pred = classifier(x_in=feat)
+                    feat = encoder(x_in=seq_feats)
+                    if not args.train_encoder:
+                        feat = feat.detach()
+                        assert feat.requires_grad == False
+                    y_pred = classifier(x_in=feat, a_in=add_feats)
                 else:
-                    y_pred = classifier(x_in=batch_dict['x_data'].float())
+                    y_pred = classifier(x_in=feat, a_in=add_feats)
 
                 # step 3. compute the loss
                 loss = loss_func(y_pred, batch_dict['y_target'].view(-1, 1).float())
@@ -195,7 +207,8 @@ def train_model(args):
 
                 # step 5. use optimizer to take gradient step
                 if encoder:
-                    enc_optimizer.step()
+                    if args.train_encoder:
+                        enc_optimizer.step()
                 cls_optimizer.step()
                 # -----------------------------------------
 
@@ -225,14 +238,16 @@ def train_model(args):
 
                 # --------------------------------------
                 # step 1. compute the output
+                seq_feats = batch_dict['x_data'].float()
+                add_feats = batch_dict['a_data'].float()
                 if encoder:
-                    feat = encoder(x_in=batch_dict['x_data'].float())
-                    y_pred = classifier(x_in=feat)
+                    feat = encoder(x_in=seq_feats)
+                    y_pred = classifier(x_in=feat, a_in=add_feats)
                 else:
-                    y_pred = classifier(x_in=batch_dict['x_data'].float())
-                y_target = batch_dict['y_target'].view(-1, 1).float()
+                    y_pred = classifier(x_in=feat, a_in=add_feats)
 
                 # step 2. compute the loss
+                y_target = batch_dict['y_target'].view(-1, 1).float()
                 loss = loss_func(y_pred, y_target)
                 loss_t = loss.item()
                 running_loss += (loss_t - running_loss) / (batch_index + 1)
@@ -255,7 +270,8 @@ def train_model(args):
                                              train_state=train_state)
 
             if encoder:
-                enc_scheduler.step(train_state['val_loss'][-1])
+                if args.train_encoder:
+                    enc_scheduler.step(train_state['val_loss'][-1])
             cls_scheduler.step(train_state['val_loss'][-1])
             
             logging.debug(f"Epoch: {epoch_index}, Validation Loss: {running_loss}, Validation APS: {val_aps}, Early stopping step: {train_state['early_stopping_step']}")
@@ -263,6 +279,11 @@ def train_model(args):
             if train_state['stop_early']:
                 logging.debug("Early stopping criterion fulfilled!")
                 break
+
+            # verify before every epoch that the encoder did not change... 
+            if not args.train_encoder:
+                for t1, t2 in zip(init_encoder_dict.values(), encoder.state_dict().values()):
+                    assert torch.equal(t1, t2)
 
     except KeyboardInterrupt:
         logging.warning("Exiting loop")

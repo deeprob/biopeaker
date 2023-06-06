@@ -45,6 +45,7 @@ def initialize_from_cli(cli_args):
         dataset=cli_args.dataset,
         genome_fasta=cli_args.genome_fasta,
         save_dir=cli_args.save_dir,
+        addn_feat_dataset=cli_args.addn_feat_dataset,
         # encoder information
         encoder_name=cli_args.encoder,
         encoder=get_encoder_object(cli_args.encoder),
@@ -54,6 +55,7 @@ def initialize_from_cli(cli_args):
         homer_outdir=cli_args.homer_outdir,
         k=cli_args.kmer,
         feat_size=get_encoder_feature_size(cli_args.encoder),
+        addn_feat_size=cli_args.addn_feat_size,
         vectorizer=get_vectorizer(cli_args.encoder),
         # classifier information
         classifier_name=cli_args.classifier,
@@ -74,6 +76,7 @@ def initialize_from_cli(cli_args):
         expand_filepaths_to_save_dir=True,
         pilot=cli_args.pilot,
         train=not cli_args.test,
+        train_encoder=not cli_args.freeze_encoder,
         test_batch_size=cli_args.test_batch_size,
         integrated_gradients=cli_args.integrated_gradients,
     )

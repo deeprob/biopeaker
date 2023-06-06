@@ -45,6 +45,10 @@ if __name__ == "__main__":
     parser.add_argument("--pilot", help="Whether it is a pilot study", action="store_true")
     parser.add_argument("--test", help="Evaluate only - model will not train", action="store_true")
     parser.add_argument("--integrated_gradients", help="Calculate integrated gradients", action="store_true")
+    parser.add_argument("--freeze_encoder", help="Don't train the encoder",  action="store_true")
+    # addn features argument
+    parser.add_argument("--addn_feat_dataset", help="supplemental features to add to classifier", type=str, default="")
+    parser.add_argument("--addn_feat_size", help="supplemental feature size", type=int, default=0)
 
     cli_args = parser.parse_args()
     model_args = uth.initialize_from_cli(cli_args)

@@ -16,11 +16,15 @@ class TFPerceptron(nn.Module):
     def __init__(self, args):
         # dropout pron only added for consistency
         super(TFPerceptron, self).__init__()
-        self.bn1 = nn.BatchNorm1d(args.feat_size)
-        self.fc1 = nn.Linear(args.feat_size, 1)
+        self.bn1 = nn.BatchNorm1d(args.feat_size + args.addn_feat_size)
+        self.fc1 = nn.Linear(args.feat_size + args.addn_feat_size, 1)
         
-    def forward(self, x_in):
-        y_out = self.fc1(self.bn1(torch.flatten(x_in, start_dim=1)))
+    def forward(self, x_in, a_in=None):
+        x_in = torch.flatten(x_in, start_dim=1)
+        if a_in.shape != (0,):
+            a_in = torch.flatten(a_in, start_dim=1)
+            x_in = torch.concat((x_in, a_in), dim=1)
+        y_out = self.fc1(self.bn1(x_in))
         return y_out
 
 
@@ -31,19 +35,22 @@ class TFMLP(nn.Module):
         super(TFMLP, self).__init__()
         self.dropout = args.dropout_prob
 
-        self.bn1 = nn.BatchNorm1d(args.feat_size)
-        self.fc1 = nn.Linear(args.feat_size, 1000)
+        self.bn1 = nn.BatchNorm1d(args.feat_size + args.addn_feat_size)
+        self.fc1 = nn.Linear(args.feat_size + args.addn_feat_size, 1000)
         self.bn2 = nn.BatchNorm1d(1000)
         self.fc2 = nn.Linear(1000, 1000)
         self.bn3 = nn.BatchNorm1d(1000)
         self.fc3 = nn.Linear(1000, 1)
         
-    def forward(self, x_in):
-        y_out = F.dropout(F.relu(self.bn2(self.fc1(self.bn1(torch.flatten(x_in, start_dim=1))))), p=self.dropout, training=self.training)
+    def forward(self, x_in, a_in=None):
+        x_in = torch.flatten(x_in, start_dim=1)
+        if a_in.shape != (0,):
+            a_in = torch.flatten(a_in, start_dim=1)
+            x_in = torch.concat((x_in, a_in), dim=1)
+        y_out = F.dropout(F.relu(self.bn2(self.fc1(self.bn1(x_in)))), p=self.dropout, training=self.training)
         y_out = F.dropout(F.relu(self.bn3(self.fc2(y_out))), p=self.dropout, training=self.training)  
         y_out = self.fc3(y_out)
         return y_out
-
 
 
 ############

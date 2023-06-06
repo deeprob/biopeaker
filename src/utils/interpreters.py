@@ -42,10 +42,10 @@ class Model(nn.Module):
         self.encoder = encoder
         self.classifier = classifier
     
-    def forward(self, x_in):
+    def forward(self, x_in, a_in):
         if self.encoder:
             x_in = self.encoder(x_in)
-        y_out = self.classifier(x_in)
+        y_out = self.classifier(x_in, a_in)
         y_out = torch.sigmoid(torch.flatten(y_out))
         return y_out
     
@@ -68,7 +68,7 @@ def eval_model(args, dataset_split="test"):
     """
 
     # Loading the dataset
-    dataset = load_data(args.dataset, args.genome_fasta, args.vectorizer, k=args.k, homer_saved=args.homer_saved, homer_pwm_motifs=args.homer_pwm_motifs, homer_outdir=args.homer_outdir)
+    dataset = load_data(args.dataset, args.genome_fasta, args.vectorizer, addn_feat_path=args.addn_feat_dataset, k=args.k, homer_saved=args.homer_saved, homer_pwm_motifs=args.homer_pwm_motifs, homer_outdir=args.homer_outdir)
     
     # Initializing encoder
     encoder = args.encoder()
@@ -103,7 +103,8 @@ def eval_model(args, dataset_split="test"):
 
     if args.integrated_gradients:
         integrated_gradients = IntegratedGradients(model)
-        attribution_array = None
+        seq_attr_array = None
+        addn_attr_array = None
         genomic_loc_array = None
     
     # Runnning evaluation routine
@@ -114,7 +115,9 @@ def eval_model(args, dataset_split="test"):
 
     for batch_index, batch_dict in enumerate(batch_generator):
         # compute the output
-        y_pred = model(x_in=batch_dict['x_data'].float())
+        seq_feats = batch_dict['x_data'].float()
+        add_feats = batch_dict['a_data'].float()
+        y_pred = model(x_in=seq_feats, a_in=add_feats)
         save_test_pred(save_file, 
                        torch.flatten(y_pred), 
                        batch_dict['y_target'], 
@@ -129,18 +132,22 @@ def eval_model(args, dataset_split="test"):
 
         # model interpretation with integrated gradients
         if args.integrated_gradients:
-            attributions, approximation_error = integrated_gradients.attribute(batch_dict['x_data'].float(), internal_batch_size=args.test_batch_size, return_convergence_delta=True, n_steps=500)
-            attributions = torch.sum(attributions, 1).cpu().numpy()
-            if attribution_array is None:
-                attribution_array = attributions
+            (seq_attr, addn_attr), approximation_error = integrated_gradients.attribute((seq_feats, add_feats), internal_batch_size=args.test_batch_size, return_convergence_delta=True, n_steps=500)
+            seq_attr = torch.sum(seq_attr, 1).cpu().numpy()
+            if seq_attr_array is None:
+                seq_attr_array = seq_attr
                 genomic_loc = batch_dict["genome_loc"]
                 genomic_loc = np.concatenate((np.array(genomic_loc[0]).reshape(-1,1), genomic_loc[1].cpu().numpy().reshape(-1,1), genomic_loc[2].cpu().numpy().reshape(-1,1)), axis=1)
                 genomic_loc_array = genomic_loc
+                if args.addn_feat_size>0:
+                    addn_attr_array = addn_attr
             else:
-                attribution_array = np.concatenate((attribution_array, attributions), axis=0)
+                seq_attr_array = np.concatenate((seq_attr_array, seq_attr), axis=0)
                 genomic_loc = batch_dict["genome_loc"]
                 genomic_loc = np.concatenate((np.array(genomic_loc[0]).reshape(-1,1), genomic_loc[1].cpu().numpy().reshape(-1,1), genomic_loc[2].cpu().numpy().reshape(-1,1)), axis=1)
                 genomic_loc_array = np.concatenate((genomic_loc_array, genomic_loc), axis=0)
+                if args.addn_feat_size>0:
+                    addn_attr_array = np.concatenate((addn_attr_array, addn_attr), axis=0)
         
         # update test bar
         test_bar.set_postfix(loss=running_loss, 
@@ -155,7 +162,10 @@ def eval_model(args, dataset_split="test"):
 
     if args.integrated_gradients:
         save_loc_file = os.path.join(args.save_dir, "locations.npy")
-        save_attr_file = os.path.join(args.save_dir, "attributions.npy")
+        save_seq_attr_file = os.path.join(args.save_dir, "seq_attr.npy")
         np.save(save_loc_file, genomic_loc_array)
-        np.save(save_attr_file, attribution_array)
+        np.save(save_seq_attr_file, seq_attr_array)
+        if args.addn_feat_size>0:
+            save_addn_attr_file = os.path.join(args.save_dir, "addn_attr.npy")
+            np.save(save_addn_attr_file, addn_attr_array)
     return save_file
