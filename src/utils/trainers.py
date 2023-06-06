@@ -283,7 +283,7 @@ def train_model(args):
             # verify before every epoch that the encoder did not change... 
             if not args.train_encoder:
                 for t1, t2 in zip(init_encoder_dict.values(), encoder.state_dict().values()):
-                    assert torch.equal(t1, t2)
+                    assert torch.equal(t1, t2.cpu())
 
     except KeyboardInterrupt:
         logging.warning("Exiting loop")

@@ -134,6 +134,7 @@ def eval_model(args, dataset_split="test"):
         if args.integrated_gradients:
             (seq_attr, addn_attr), approximation_error = integrated_gradients.attribute((seq_feats, add_feats), internal_batch_size=args.test_batch_size, return_convergence_delta=True, n_steps=500)
             seq_attr = torch.sum(seq_attr, 1).cpu().numpy()
+            addn_attr = torch.sum(addn_attr, 1).cpu().numpy()
             if seq_attr_array is None:
                 seq_attr_array = seq_attr
                 genomic_loc = batch_dict["genome_loc"]
