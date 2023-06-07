@@ -69,7 +69,8 @@ def update_train_state(args, encoder, classifier, train_state):
             # Save the best model
             if loss_dict[args.early_stopping_function]["better"](apc_t, train_state['early_stopping_best_val']):
                 if args.encoder:
-                    torch.save(encoder.state_dict(), train_state['encoder_filename'])
+                    if args.train_encoder:
+                        torch.save(encoder.state_dict(), train_state['encoder_filename'])
                 torch.save(classifier.state_dict(), train_state['classifier_filename'])
                 train_state['early_stopping_best_val'] = apc_t
 

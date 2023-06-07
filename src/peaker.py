@@ -34,7 +34,7 @@ if __name__ == "__main__":
     # model training arguments
     parser.add_argument("--num_epochs", type=int, help="Number of epochs to train", default=100)
     parser.add_argument("--pytorch_device", type=str, help="Type of pytorch device to use :: one of cuda or cpu", default="cuda")
-    parser.add_argument("--dropout_prob", type=float, help="Dropout probability of neural network", default=0.65)
+    parser.add_argument("--dropout_prob", type=float, help="Dropout probability of neural network", default=0.75)
     parser.add_argument("--batch_size", type=int, help="Batch size for training", default=64)
     parser.add_argument("--learning_rate", type=float, help="Optimizer learning rate", default=0.001)
     parser.add_argument("--early_stopping_function", type=str, help="Early stopping function to use, one of val_aps or val_loss", default="val_aps")

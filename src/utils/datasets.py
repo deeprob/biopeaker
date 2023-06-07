@@ -244,6 +244,10 @@ class TFDataset(Dataset):
         self._target_split = split
         self._target_df = self.tf_df if self._target_split=="all" else self.tf_df[self.tf_df.split==split] 
         self._target_size = len(self._target_df)
+        if not self.addn_df.empty:
+            self._target_addn_df = self.addn_df.iloc[self._target_df.index]
+        else:
+            self._target_addn_df = pd.DataFrame()
         return
     
     def __len__(self):
@@ -254,9 +258,15 @@ class TFDataset(Dataset):
         chrm, start, end = row.chrm, row.start, row.end
         tf_vector = self._vectorizer.vectorize(row.chrm, row.start, row.end)
         tf_label = row.label
-        seq_id = "_".join([chrm, str(start), str(end)])
+        if not self._target_addn_df.empty:
+            seq_id = "_".join([chrm, str(start), str(end)])
+            addn_feat = self._target_addn_df.iloc[index]
+            assert addn_feat.name==seq_id
+            addn_feat_vector = addn_feat.values.reshape(1, -1)
+        else:
+            addn_feat_vector = np.array([])
         return {"x_data": tf_vector,
-                "a_data": self.addn_df.loc[seq_id].values.reshape(1, -1) if not self.addn_df.empty else np.array([]),
+                "a_data": addn_feat_vector,
                 "y_target": tf_label,
                 "genome_loc": (chrm, start, end)}
     
