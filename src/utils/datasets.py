@@ -234,11 +234,12 @@ class TFDataset(Dataset):
         genome_path: path to the genome fasta file of the organism
         addn_feat_path: path to the additional features hdf5 file
         """
-        tf_df = pd.read_hdf(tf_df_path, stop=nrows)
+        tf_df = pd.read_hdf(tf_df_path, stop=nrows).reset_index(drop=True)
         addn_df = pd.DataFrame()
         if addn_feat_path:
-            addn_df = pd.read_hdf(addn_feat_path, stop=nrows)
+            addn_df = pd.read_hdf(addn_feat_path, stop=nrows).reset_index(drop=True)
             addn_df = addn_df.set_index(addn_df.columns[0])
+            assert len(tf_df) == len(addn_df)
         vectorizer = GenomeVectorizer.load_from_path(genome_path, vectorizer=vectorizer, k=k, homer_saved=homer_saved, homer_pwm_motifs=homer_pwm_motifs, homer_outdir=homer_outdir, roi_bed=tf_df_path)
         return cls(tf_df, vectorizer, addn_df)
     
@@ -263,7 +264,10 @@ class TFDataset(Dataset):
         if not self._target_addn_df.empty:
             seq_id = "_".join([chrm, str(start), str(end)])
             addn_feat = self._target_addn_df.iloc[index]
-            assert addn_feat.name==seq_id
+            try:
+                assert addn_feat.name==seq_id
+            except AssertionError:
+                raise ValueError(f"sequence id: {seq_id} and feature id: {addn_feat.name} do not match")
             addn_feat_vector = addn_feat.values.reshape(1, -1)
         else:
             addn_feat_vector = np.array([])
