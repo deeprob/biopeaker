@@ -182,5 +182,5 @@ class ResNet(nn.Module):
         out = self.layer4(out)
         out = self.flayer(out)
         out = self.maxpool3(out)
-        out = out.view(-1, 2200)
+        # out = out.view(-1, 2200)
         return out

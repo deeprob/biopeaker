@@ -192,13 +192,13 @@ def train_model(args):
                 seq_feats = batch_dict['x_data'].float()
                 add_feats = batch_dict['a_data'].float()
                 if args.encoder:
-                    feat = encoder(x_in=seq_feats)
+                    seq_feats = encoder(x_in=seq_feats)
                     if not args.train_encoder:
-                        feat = feat.detach()
-                        assert feat.requires_grad == False
-                    y_pred = classifier(x_in=feat, a_in=add_feats)
+                        seq_feats = seq_feats.detach()
+                        assert seq_feats.requires_grad == False
+                    y_pred = classifier(x_in=seq_feats, a_in=add_feats)
                 else:
-                    y_pred = classifier(x_in=feat, a_in=add_feats)
+                    y_pred = classifier(x_in=seq_feats, a_in=add_feats)
 
                 # step 3. compute the loss
                 loss = loss_func(y_pred, batch_dict['y_target'].view(-1, 1).float())
@@ -230,7 +230,8 @@ def train_model(args):
             running_loss = 0.
             tmp_filename = os.path.join(args.save_dir, f"validation_file.tmp")
             tmp_file = open(tmp_filename, "wb")
-            encoder.eval()
+            if args.encoder:
+                encoder.eval()
             classifier.eval()
 
             for batch_index, batch_dict in enumerate(batch_generator):
@@ -242,10 +243,10 @@ def train_model(args):
                 seq_feats = batch_dict['x_data'].float()
                 add_feats = batch_dict['a_data'].float()
                 if args.encoder:
-                    feat = encoder(x_in=seq_feats)
-                    y_pred = classifier(x_in=feat, a_in=add_feats)
+                    seq_feats = encoder(x_in=seq_feats)
+                    y_pred = classifier(x_in=seq_feats, a_in=add_feats)
                 else:
-                    y_pred = classifier(x_in=feat, a_in=add_feats)
+                    y_pred = classifier(x_in=seq_feats, a_in=add_feats)
 
                 # step 2. compute the loss
                 y_target = batch_dict['y_target'].view(-1, 1).float()
@@ -266,7 +267,7 @@ def train_model(args):
         
             train_state['val_aps'].append(val_aps)
             train_state = update_train_state(args=args,
-                                             encoder=encoder,
+                                             encoder=encoder if args.encoder else None,
                                              classifier=classifier,
                                              train_state=train_state)
 

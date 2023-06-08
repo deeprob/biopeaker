@@ -20,7 +20,7 @@ def call_peaker(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Deep learning based peak prediction pipeline')
     # required arguments
-    parser.add_argument("dataset", type=str, help="The path to the parsed dataset file -  must be according to convention")
+    parser.add_argument("dataset", type=str, help="The path to the parsed dataset file -  must be according to convention and in HDF5 format")
     parser.add_argument("genome_fasta", type=str, help="Path to genome fasta file")
     parser.add_argument("save_dir", type=str, help="Path where models and results will be saved")
     # model arguments
@@ -34,7 +34,7 @@ if __name__ == "__main__":
     # model training arguments
     parser.add_argument("--num_epochs", type=int, help="Number of epochs to train", default=100)
     parser.add_argument("--pytorch_device", type=str, help="Type of pytorch device to use :: one of cuda or cpu", default="cuda")
-    parser.add_argument("--dropout_prob", type=float, help="Dropout probability of neural network", default=0.75)
+    parser.add_argument("--dropout_prob", type=float, help="Dropout probability of neural network", default=0.7)
     parser.add_argument("--batch_size", type=int, help="Batch size for training", default=64)
     parser.add_argument("--learning_rate", type=float, help="Optimizer learning rate", default=0.001)
     parser.add_argument("--early_stopping_function", type=str, help="Early stopping function to use, one of val_aps or val_loss", default="val_aps")
@@ -47,7 +47,7 @@ if __name__ == "__main__":
     parser.add_argument("--integrated_gradients", help="Calculate integrated gradients", action="store_true")
     parser.add_argument("--freeze_encoder", help="Don't train the encoder",  action="store_true")
     # addn features argument
-    parser.add_argument("--addn_feat_dataset", help="supplemental features to add to classifier", type=str, default="")
+    parser.add_argument("--addn_feat_dataset", help="supplemental features to add to classifier -  must be according to convention and in HDF5 format", type=str, default="")
     parser.add_argument("--addn_feat_size", help="supplemental feature size", type=int, default=0)
 
     cli_args = parser.parse_args()

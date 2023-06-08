@@ -230,13 +230,15 @@ class TFDataset(Dataset):
     def load_dataset_and_vectorizer_from_path(
         cls, tf_df_path, genome_path, addn_feat_path="", nrows=None, vectorizer="ohe", k=5, homer_saved="", homer_pwm_motifs="", homer_outdir=""):
         """
-        tf_df_path: path to the tf csv file with genomic locations and annotations  
+        tf_df_path: path to the tf hdf5 file with genomic locations and annotations  
         genome_path: path to the genome fasta file of the organism
+        addn_feat_path: path to the additional features hdf5 file
         """
-        tf_df = pd.read_csv(tf_df_path, nrows=nrows)
+        tf_df = pd.read_hdf(tf_df_path, stop=nrows)
         addn_df = pd.DataFrame()
         if addn_feat_path:
-            addn_df = pd.read_csv(addn_feat_path, index_col=0)
+            addn_df = pd.read_hdf(addn_feat_path, stop=nrows)
+            addn_df = addn_df.set_index(addn_df.columns[0])
         vectorizer = GenomeVectorizer.load_from_path(genome_path, vectorizer=vectorizer, k=k, homer_saved=homer_saved, homer_pwm_motifs=homer_pwm_motifs, homer_outdir=homer_outdir, roi_bed=tf_df_path)
         return cls(tf_df, vectorizer, addn_df)
     
