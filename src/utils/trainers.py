@@ -108,8 +108,8 @@ def train_model(args):
 
     # Initializing encoder
     logging.debug(f'Initializing encoder...')
-    encoder = args.encoder()
-    if encoder:
+    if args.encoder:
+        encoder = args.encoder()
         encoder_params = get_n_params(encoder)
         logging.debug(f"The encoder has {encoder_params} parameters.")
         if os.path.exists(args.encoder_state_file):
@@ -132,12 +132,12 @@ def train_model(args):
 
     # Defining loss function, optimizer and scheduler
     loss_func = nn.BCEWithLogitsLoss()
-    if encoder:
+    if args.encoder:
         if args.train_encoder:
             enc_optimizer = optim.Adam(encoder.parameters(), lr=args.learning_rate, eps=1e-7)
     cls_optimizer = optim.Adam(classifier.parameters(), lr=args.learning_rate, eps=1e-7)
     # adjusting the learning rate for better performance
-    if encoder:
+    if args.encoder:
         if args.train_encoder:
             enc_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer=enc_optimizer,
                                                             mode='min', factor=0.5,
@@ -170,7 +170,7 @@ def train_model(args):
                                                batch_size=args.batch_size, 
                                                device=args.device)
             running_loss = 0.0
-            if encoder:
+            if args.encoder:
                 if args.train_encoder:
                     encoder.train()
                 else:
@@ -183,7 +183,7 @@ def train_model(args):
 
                 # --------------------------------------
                 # step 1. zero the gradients
-                if encoder:
+                if args.encoder:
                     if args.train_encoder:
                         enc_optimizer.zero_grad()
                 cls_optimizer.zero_grad()
@@ -191,7 +191,7 @@ def train_model(args):
                 # step 2. compute the output
                 seq_feats = batch_dict['x_data'].float()
                 add_feats = batch_dict['a_data'].float()
-                if encoder:
+                if args.encoder:
                     feat = encoder(x_in=seq_feats)
                     if not args.train_encoder:
                         feat = feat.detach()
@@ -207,7 +207,7 @@ def train_model(args):
                 loss.backward()
 
                 # step 5. use optimizer to take gradient step
-                if encoder:
+                if args.encoder:
                     if args.train_encoder:
                         enc_optimizer.step()
                 cls_optimizer.step()
@@ -241,7 +241,7 @@ def train_model(args):
                 # step 1. compute the output
                 seq_feats = batch_dict['x_data'].float()
                 add_feats = batch_dict['a_data'].float()
-                if encoder:
+                if args.encoder:
                     feat = encoder(x_in=seq_feats)
                     y_pred = classifier(x_in=feat, a_in=add_feats)
                 else:
@@ -270,7 +270,7 @@ def train_model(args):
                                              classifier=classifier,
                                              train_state=train_state)
 
-            if encoder:
+            if args.encoder:
                 if args.train_encoder:
                     enc_scheduler.step(train_state['val_loss'][-1])
             cls_scheduler.step(train_state['val_loss'][-1])
