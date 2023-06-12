@@ -44,7 +44,7 @@ Will use Resnet encoder and MLP classifier
 ```
 
 # Compatible encoders
-1. deep learning based CNN a.k.a resnet
+1. residual networks a.k.a resnet
 2. homer motif scan a.k.a homer
 
 # Compatible classifiers
