@@ -24,13 +24,14 @@ Train, predict, evaluate and interpret deep learning models to classify any geno
     $ python $create_dataset_path $peak_bed_file $nonpeak_bed_file $dataset_path
 ```
 
-## Run model
+## Run model with default settings
+Will use Resnet encoder and MLP classifier
 ```bash
     $ peaker_path="/path/to/peaker.py"
     $ dataset_path="/path/to/dataset.csv"
     $ genome_fasta="/path/to/genome_fasta.fa"
     $ save_dir="/path/to/save_dir/"
-    $ python $peaker_path resnet $dataset_path ohe $genome_fasta $save_dir
+    $ python $peaker_path $dataset_path $genome_fasta $save_dir
 ```
 
 ## Eval model
@@ -39,18 +40,25 @@ Train, predict, evaluate and interpret deep learning models to classify any geno
     $ dataset_path="/path/to/dataset.csv"
     $ genome_fasta="/path/to/genome_fasta.fa"
     $ save_dir="/path/to/save_dir/"
-    $ python $peaker_path resnet $dataset_path ohe $genome_fasta $save_dir --test
+    $ python $peaker_path $dataset_path $genome_fasta $save_dir --test
 ```
 
-# Training methods
+# Compatible encoders
+1. deep learning based CNN a.k.a resnet
+2. homer motif scan a.k.a homer
+
+# Compatible classifiers
 1. Logistic Regression a.k.a linear
 2. Multi Layer Perceptron a.k.a mlp
-3. Residual Network a.k.a resnet
 
-# Genome vectorizer methods
-1. One hot encoding a.k.a ohe - compatible with resnet
-2. k-mer creation a.k.a kmer - compatible with linear and mlp
-3. homer motif scan a.k.a homer - compatible with linear and mlp
 
 # Interpretation tools
 1. Integrated Gradients
+
+# Major changes from v1.0.0
+1. Model separated into encoder and classifier
+2. Peaker interface changed, by default resnet with mlp is chosen method
+3. Peaker dataset type changed from csv to hdf5 format
+4. Integrated gradients calculation now included for linear model
+5. Encoder freezing capability added
+6. Additional features beyond sequence can now to added
