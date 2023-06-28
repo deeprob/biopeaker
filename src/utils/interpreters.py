@@ -15,9 +15,9 @@ from .samplers import get_test_sampler, generate_batches
 from .datasets import load_data
 
 
-def save_linear_model_features(model, vectorizer, homer_saved, save_file):
+def save_linear_model_features(classifier, vectorizer, homer_saved, save_file):
     # get weights
-    for layer in model.children():
+    for layer in classifier.children():
         if isinstance(layer, nn.Linear):
             weights = layer.state_dict()['weight']
     # from vectorizer, get the feature names
@@ -74,12 +74,14 @@ def eval_model(args, dataset_split="test"):
     if args.encoder:
         encoder = args.encoder()
         encoder.load_state_dict(torch.load(args.encoder_state_file))
+        encoder.eval()
     else:
         encoder = None
     
     # Initializing classifier
     classifier = args.classifier(args)
     classifier.load_state_dict(torch.load(args.classifier_state_file))
+    classifier.eval()
 
     # get combined model
     model = Model(encoder, classifier)
@@ -161,7 +163,7 @@ def eval_model(args, dataset_split="test"):
     if args.classifier_name == "linear":
         if args.encoder_name == "homer":
             save_file = os.path.join(args.save_dir, "features.csv")
-            save_linear_model_features(model, args.vectorizer, args.homer_saved, save_file)
+            save_linear_model_features(classifier, args.vectorizer, args.homer_saved, save_file)
 
     if args.integrated_gradients:
         save_loc_file = os.path.join(args.save_dir, "locations.npy")
