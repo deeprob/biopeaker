@@ -9,3 +9,4 @@ ipykernel
 pandas
 scikit-learn
 tables
+pybedtools
