@@ -30,7 +30,7 @@ def get_encoder_object(encoder):
 
 def get_encoder_feature_size(encoder):
     encoder_feat_dict = {
-        "resnet": 2200, "homer":802, "kmer":None
+        "resnet": 4200, "homer":802, "kmer":None
         }
     return encoder_feat_dict[encoder]
 
@@ -156,26 +156,30 @@ def create_centered_peaks(bed_file, window_size, chrom_sizes):
     df = pd.read_csv(bed_file, sep="\t", header=None, names=cols, usecols=[0, 1, 2])
     # Filter out invalid chromosomes early
     df = df[df["chrom"].isin(chrom_sizes)]
-    # Compute initial start and end
-    peak_center = (df["start"] + df["end"]) // 2
-    new_start = peak_center - (window_size // 2)
-    new_end = peak_center + (window_size // 2)
-    # Get chromosome max size
-    chrom_max_sizes = df["chrom"].map(chrom_sizes)
-    # Shift if out of bounds
-    shift_right = np.where(new_start < 1, -new_start+1, 0)  # Extra bp to shift right
-    shift_left = np.where(new_end > chrom_max_sizes, new_end - chrom_max_sizes, 0)  # Extra bp to shift left
-    # Adjust start and end while keeping size fixed
-    new_start = new_start + shift_right - shift_left
-    new_end = new_end + shift_right - shift_left
-    assert np.all(new_end-new_start==window_size)
-    # Create final dataframe
-    df_centered = pd.DataFrame({
-        "chrom": df["chrom"],
-        "start": new_start,
-        "end": new_end
-    })
-    return df_centered
+    # Determine offset from center
+    df_peaks = pd.DataFrame()
+    for position, offset in zip(["center", "left", "right"], [window_size//2, window_size//4, 3 * window_size//4]):
+        # Compute initial start and end
+        peak_center = (df["start"] + df["end"]) // 2
+        new_start = peak_center - offset 
+        new_end = new_start + window_size
+        # Get chromosome max size
+        chrom_max_sizes = df["chrom"].map(chrom_sizes)
+        # Shift if out of bounds
+        shift_right = np.where(new_start < 1, -new_start+1, 0)  # Extra bp to shift right
+        shift_left = np.where(new_end > chrom_max_sizes, new_end - chrom_max_sizes, 0)  # Extra bp to shift left
+        # Adjust start and end while keeping size fixed
+        new_start = new_start + shift_right - shift_left
+        new_end = new_end + shift_right - shift_left
+        assert np.all(new_end-new_start==window_size)
+        # Create final dataframe
+        df_centered = pd.DataFrame({
+            "chrom": df["chrom"],
+            "start": new_start,
+            "end": new_end
+        })
+        df_peaks = pd.concat([df_peaks, df_centered])
+    return df_peaks
 
 def generate_non_overlapping_windows(chrom_sizes, window_size=1000):
     """

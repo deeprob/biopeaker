@@ -27,7 +27,7 @@ def get_sampler(dataset, weighted=False, mini=False):
     if weighted:
         # get the sample weights  
         class_counts = dataset._target_df.label.value_counts().to_dict()
-        num_samples = len(dataset)
+        num_samples = int(min(len(dataset), 5*(min(class_counts.values()))))
         labels = dataset._target_df.label.values
         class_weights = [num_samples/class_counts[i] for i in range(len(class_counts))]
         sample_weights = np.array([class_weights[labels[i]] for i in range(int(num_samples))])

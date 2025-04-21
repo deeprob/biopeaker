@@ -161,7 +161,7 @@ class ResNet(nn.Module):
 
         self.maxpool1 = nn.MaxPool2d((3, 1))
         self.maxpool2 = nn.MaxPool2d((4, 1))
-        self.maxpool3 = nn.MaxPool2d((4, 1))
+        self.maxpool3 = nn.AdaptiveMaxPool2d((21, 1))
         self.flayer = self.final_layer()
 
     def final_layer(self):
@@ -171,7 +171,7 @@ class ResNet(nn.Module):
 
 
     def forward(self, x_in):
-        x_in = x_in.view(-1, 4, 500, 1)  # batch_size x 4 x 500 x 1 [4 channels]
+        x_in = x_in.view(-1, 4, x_in.shape[-1], 1)  # batch_size x 4 x 500 x 1 [4 channels]
 
         out = self.prelayer(x_in)
         out = self.layer1(out)

@@ -176,7 +176,7 @@ def train_model(args):
                 else:
                     encoder.eval()
             classifier.train()
-
+            print_once=True
             for batch_index, batch_dict in enumerate(batch_generator):
 
                 # the training routine as follows:

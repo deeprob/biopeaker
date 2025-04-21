@@ -6,20 +6,20 @@
 #SBATCH --cpus-per-task=5
 #SBATCH --time=400:0:0
 #SBATCH --mem-per-cpu=10G
-#SBATCH --chdir /data6/deepro/computational_pipelines/dl_setup/data # TODO: set dir to data dir
-#SBATCH -o /data6/deepro/computational_pipelines/biopeaker/slurm/logs/out_eval.log # TODO: set slurm output file
-#SBATCH -e /data6/deepro/computational_pipelines/biopeaker/slurm/logs/err_eval.log # TODO: set slurm input file
+#SBATCH --chdir /data7/deepro/pipelines/biopeaker # TODO: set dir to data dir
+#SBATCH -o /data7/deepro/pipelines/biopeaker/slurm/logs/out_eval.log # TODO: set slurm output file
+#SBATCH -e /data7/deepro/pipelines/biopeaker/slurm/logs/err_eval.log # TODO: set slurm input file
 #SBATCH --nodelist=laila
 #SBATCH --gpus=1
 
-
+export HOME="/data7/deepro/pipelines/biopeaker/data/tmp"
 echo `date` starting job on $HOSTNAME
 
-peaker_path="/data6/deepro/computational_pipelines/biopeaker/src/peaker.py"
-dataset_path="/data6/deepro/computational_pipelines/dl_setup/data/sample.csv"
+peaker_path="/data7/deepro/pipelines/biopeaker/src/peaker.py"
+dataset_path="/data7/deepro/pipelines/biopeaker/data/tmp/test_1000.h5"
 genome_fasta="/data5/deepro/genomes/hg38/GRCh38_no_alt_analysis_set_GCA_000001405.15.fasta"
-save_dir="/data6/deepro/computational_pipelines/dl_setup/data/resnet"
+save_dir="/data7/deepro/pipelines/biopeaker/data/tmp/resnet_1000"
 
-python $peaker_path resnet $dataset_path ohe $genome_fasta $save_dir --test
+python $peaker_path $dataset_path $genome_fasta $save_dir --test --integrated_gradients
 
 echo `date` ending job on $HOSTNAME
