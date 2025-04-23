@@ -7,7 +7,7 @@ import pandas as pd
 import torch
 import torch.nn as nn
 
-from captum.attr import IntegratedGradients
+from captum.attr import IntegratedGradients, DeepLiftShap
 
 import tqdm
 
@@ -42,7 +42,7 @@ class Model(nn.Module):
         self.encoder = encoder
         self.classifier = classifier
     
-    def forward(self, x_in, a_in):
+    def forward(self, x_in, a_in=None):
         if self.encoder:
             x_in = self.encoder(x_in)
         y_out = self.classifier(x_in, a_in)
@@ -60,6 +60,24 @@ def save_test_pred(filename, y_preds, y_targets, genomic_locs, mode="ab"):
             f.write(bytes(f"{y_pred},{y_target},{chrm},{start},{end}\n", "utf-8"))
     return
 
+def permute_sequence(seq):
+    batch_size = seq.shape[0]
+    subset_batch_size = batch_size//4
+    subset_seq = seq[torch.randperm(batch_size)[:subset_batch_size]]
+    permuted_seq = torch.zeros_like(subset_seq, device=seq.device)
+    for i in range(subset_batch_size):
+        seq_permutation = torch.randperm(seq.shape[-1])
+        permuted_seq[i] = subset_seq[i, :, seq_permutation]
+    return permuted_seq
+
+def baseline_func(x):
+    if isinstance(x, tuple):
+        if x[1].shape[1]>0:
+            print("got addn features")
+            permuted_seq = permute_sequence(x[0])
+            return (permuted_seq, torch.zeros(x[1].shape[0]//4, x[1].shape[-1], device=x[1].device))
+    permuted_seq = permute_sequence(x)
+    return permuted_seq
 
 def eval_model(args, dataset_split="test"):
     """
@@ -105,9 +123,11 @@ def eval_model(args, dataset_split="test"):
     save_filename = f"{args.encoder_name}_{args.classifier_name}.csv.gz"
     save_file = os.path.join(args.save_dir, save_filename)
 
-    if args.integrated_gradients:
-        integrated_gradients = IntegratedGradients(model)
+    if args.interpreter:
+        interpreter = args.interpreter(model)
+        seq_feat_array = None
         seq_attr_array = None
+        addn_feat_array = None
         addn_attr_array = None
         genomic_loc_array = None
     
@@ -120,7 +140,9 @@ def eval_model(args, dataset_split="test"):
     for batch_index, batch_dict in enumerate(batch_generator):
         # compute the output
         seq_feats = batch_dict['x_data'].float()
-        add_feats = batch_dict['a_data'].float()
+        add_feats = None
+        if args.addn_feat_size>0:
+            add_feats = batch_dict['a_data'].float()
         y_pred = model(x_in=seq_feats, a_in=add_feats)
         save_test_pred(save_file, 
                        torch.flatten(y_pred), 
@@ -134,25 +156,43 @@ def eval_model(args, dataset_split="test"):
         loss_t = loss.item()
         running_loss += (loss_t - running_loss) / (batch_index + 1)
 
-        # model interpretation with integrated gradients
-        if args.integrated_gradients:
-            (seq_attr, addn_attr), approximation_error = integrated_gradients.attribute((seq_feats, add_feats), internal_batch_size=args.test_batch_size, return_convergence_delta=True, n_steps=500)
-            seq_attr = torch.sum(seq_attr, 1).cpu().numpy()
-            addn_attr = torch.sum(addn_attr, 1).cpu().numpy()
+        # model interpretation with integrated gradients/ deep shap
+        if args.interpreter:
+            interpreter_kwargs = {}
+            if isinstance(interpreter, IntegratedGradients):
+                interpreter_kwargs["internal_batch_size"] = args.test_batch_size
+                interpreter_kwargs["n_steps"] = 500
+            
+            elif isinstance(interpreter, DeepLiftShap):
+                interpreter_kwargs["baselines"] = baseline_func
+
+            if args.addn_feat_size>0:
+                (seq_attr, addn_attr), approximation_error = interpreter.attribute((seq_feats, add_feats), return_convergence_delta=True, **interpreter_kwargs)
+                addn_attr = addn_attr.cpu().detach().numpy()
+                add_feats = add_feats.cpu().detach().numpy()
+            else:
+                seq_attr, approximation_error = interpreter.attribute(seq_feats, return_convergence_delta=True, **interpreter_kwargs)
+            
+            seq_attr = seq_attr.cpu().detach().numpy()
+            seq_feats = seq_feats.cpu().detach().numpy()
             if seq_attr_array is None:
                 seq_attr_array = seq_attr
+                seq_feat_array = seq_feats
                 genomic_loc = batch_dict["genome_loc"]
                 genomic_loc = np.concatenate((np.array(genomic_loc[0]).reshape(-1,1), genomic_loc[1].cpu().numpy().reshape(-1,1), genomic_loc[2].cpu().numpy().reshape(-1,1)), axis=1)
                 genomic_loc_array = genomic_loc
                 if args.addn_feat_size>0:
                     addn_attr_array = addn_attr
+                    addn_feat_array = add_feats
             else:
                 seq_attr_array = np.concatenate((seq_attr_array, seq_attr), axis=0)
+                seq_feat_array = np.concatenate((seq_feat_array, seq_feats), axis=0)
                 genomic_loc = batch_dict["genome_loc"]
                 genomic_loc = np.concatenate((np.array(genomic_loc[0]).reshape(-1,1), genomic_loc[1].cpu().numpy().reshape(-1,1), genomic_loc[2].cpu().numpy().reshape(-1,1)), axis=1)
                 genomic_loc_array = np.concatenate((genomic_loc_array, genomic_loc), axis=0)
                 if args.addn_feat_size>0:
                     addn_attr_array = np.concatenate((addn_attr_array, addn_attr), axis=0)
+                    addn_feat_array = np.concatenate((addn_feat_array, add_feats), axis=0)
         
         # update test bar
         test_bar.set_postfix(loss=running_loss, 
@@ -165,12 +205,16 @@ def eval_model(args, dataset_split="test"):
             save_file = os.path.join(args.save_dir, "features.csv")
             save_linear_model_features(classifier, args.vectorizer, args.homer_saved, save_file)
 
-    if args.integrated_gradients:
+    if args.interpreter:
         save_loc_file = os.path.join(args.save_dir, "locations.npy")
         save_seq_attr_file = os.path.join(args.save_dir, "seq_attr.npy")
+        save_seq_feat_file = os.path.join(args.save_dir, "seq_feat.npy")
         np.save(save_loc_file, genomic_loc_array)
         np.save(save_seq_attr_file, seq_attr_array)
+        np.save(save_seq_feat_file, seq_feat_array)
         if args.addn_feat_size>0:
             save_addn_attr_file = os.path.join(args.save_dir, "addn_attr.npy")
+            save_addn_feat_file = os.path.join(args.save_dir, "addn_feat.npy")
             np.save(save_addn_attr_file, addn_attr_array)
+            np.save(save_addn_feat_file, addn_feat_array)
     return save_file

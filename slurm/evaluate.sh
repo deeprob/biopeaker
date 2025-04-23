@@ -14,6 +14,7 @@
 
 export HOME="/data7/deepro/pipelines/biopeaker/data/tmp"
 echo `date` starting job on $HOSTNAME
+source /opt/anaconda/bin/activate /data7/deepro/miniconda3/envs/biopeaker
 
 peaker_path="/data7/deepro/pipelines/biopeaker/src/peaker.py"
 dataset_path="/data7/deepro/pipelines/biopeaker/data/tmp/test_1000.h5"

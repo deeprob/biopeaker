@@ -1,6 +1,6 @@
 1. README update
-2. Generate evenly sized peak files from bed files for easier integration with TF dataset
-3. Train model once with default params
-4. Generalize to 1000 or 10000 bp
-5. Add multi-headed atttention
-6. 
+2. Generate evenly sized peak files from bed files for easier integration with TF dataset - done
+3. Train model once with default params - done
+4. Generalize to 1000 or 10000 bp - done
+5. Interpretation add deepshap - done
+6. Add multi-headed atttention 

@@ -44,7 +44,7 @@ class TFMLP(nn.Module):
         
     def forward(self, x_in, a_in=None):
         x_in = torch.flatten(x_in, start_dim=1)
-        if a_in.shape != (0,):
+        if a_in is not None:
             a_in = torch.flatten(a_in, start_dim=1)
             x_in = torch.concat((x_in, a_in), dim=1)
         y_out = F.dropout(F.relu(self.bn2(self.fc1(self.bn1(x_in)))), p=self.dropout, training=self.training)

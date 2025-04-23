@@ -44,7 +44,7 @@ if __name__ == "__main__":
     parser.add_argument("--test_batch_size", type=int, help="Batch size for evaluation", default=64)
     parser.add_argument("--pilot", help="Whether it is a pilot study", action="store_true")
     parser.add_argument("--test", help="Evaluate only - model will not train", action="store_true")
-    parser.add_argument("--integrated_gradients", help="Calculate integrated gradients", action="store_true")
+    parser.add_argument("--interpreter", help="Type of interpreter :: one of ig (integrated gradients) or ds (deepSHAP)", type=str, default="")
     parser.add_argument("--freeze_encoder", help="Don't train the encoder",  action="store_true")
     # addn features argument
     parser.add_argument("--addn_feat_dataset", help="supplemental features to add to classifier -  must be according to convention and in HDF5 format", type=str, default="")

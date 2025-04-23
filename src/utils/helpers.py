@@ -10,6 +10,7 @@ import pybedtools
 
 import torch
 from .models import TFPerceptron, TFMLP, ResNet 
+from captum.attr import IntegratedGradients, DeepLiftShap
 
 
 ##############
@@ -39,6 +40,12 @@ def get_vectorizer(encoder):
         "resnet": "ohe", "homer": "homer", "kmer":"kmer"
     }
     return vectorizer_dict[encoder]
+
+def get_interpreter_object(interpreter):
+    interpreter_dict = {
+        "ig": IntegratedGradients, "ds": DeepLiftShap
+    }
+    return interpreter_dict.get(interpreter, "")
 
 def initialize_from_cli(cli_args):
     args = Namespace(
@@ -79,7 +86,7 @@ def initialize_from_cli(cli_args):
         train=not cli_args.test,
         train_encoder=not cli_args.freeze_encoder,
         test_batch_size=cli_args.test_batch_size,
-        integrated_gradients=cli_args.integrated_gradients,
+        interpreter=get_interpreter_object(cli_args.interpreter),
     )
 
     if not torch.cuda.is_available():
