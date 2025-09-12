@@ -2,6 +2,7 @@ import argparse
 import utils.helpers as uth
 import utils.trainers as utt
 import utils.interpreters as uti
+import utils.mlt_trainers as utm
 
 
 def call_peaker(args):
@@ -11,7 +12,11 @@ def call_peaker(args):
     uth.handle_dirs(args.save_dir)
     # training or evaluation
     if args.train:
-        train_state = utt.train_model(args)
+        if args.task_names:
+            # multi-task training
+            train_state = utm.train_mlt_model(args)
+        else:
+            train_state = utt.train_model(args)
     else:
         pred_save_file = uti.eval_model(args)
     return
@@ -46,9 +51,13 @@ if __name__ == "__main__":
     parser.add_argument("--test", help="Evaluate only - model will not train", action="store_true")
     parser.add_argument("--interpreter", help="Type of interpreter :: one of ig (integrated gradients) or ds (deepSHAP)", type=str, default="")
     parser.add_argument("--freeze_encoder", help="Don't train the encoder",  action="store_true")
+    parser.add_argument("--multiplier", help="Get the number of training samples based on the lowest class",  type=int, default=5)
     # addn features argument
     parser.add_argument("--addn_feat_dataset", help="supplemental features to add to classifier -  must be according to convention and in HDF5 format", type=str, default="")
     parser.add_argument("--addn_feat_size", help="supplemental feature size", type=int, default=0)
+    # multi-task learning
+    parser.add_argument("--task_names", nargs="+", type=str, help="Names of similar tasks which should correspond to labels in dataset", default=[])
+    parser.add_argument("--label_name", type=str, help="Name of the label in dataset to evaluate", default="label")
 
     cli_args = parser.parse_args()
     model_args = uth.initialize_from_cli(cli_args)

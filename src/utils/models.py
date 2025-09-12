@@ -21,7 +21,7 @@ class TFPerceptron(nn.Module):
         
     def forward(self, x_in, a_in=None):
         x_in = torch.flatten(x_in, start_dim=1)
-        if a_in.shape != (0,):
+        if a_in is not None:
             a_in = torch.flatten(a_in, start_dim=1)
             x_in = torch.concat((x_in, a_in), dim=1)
         y_out = self.fc1(self.bn1(x_in))

@@ -40,8 +40,8 @@ class HomerVectorizer:
     """
     Vectorizes chromosomal locations by scanning them using Homer and its motif database
     """
-    def __init__(self, roi_bed, genome_fasta, homer_pwm_motifs, homer_outdir, threads=32):
-        self.genome = genome_fasta
+    def __init__(self, roi_bed, genome_filepath, homer_pwm_motifs, homer_outdir, threads=32):
+        self.genome = genome_filepath
         self.homer_pwms = homer_pwm_motifs
         self.roi = roi_bed
         self.homer_outdir = homer_outdir
@@ -74,8 +74,8 @@ class HomerVectorizer:
         """
         Converts an roi file with chromosomal coordinates to a homer compatible one
         """
-        df_roi = pd.read_csv(self.roi, usecols=[0,1,2], sep="\t", header=None).drop_duplicates()
-        df_roi.rename(columns={0: "chrm", 1: "start", 2: "end"}, inplace=True)
+        df_roi = pd.read_hdf(self.roi).drop_duplicates().reset_index(drop=True)
+        # df_roi.rename(columns={0: "chrm", 1: "start", 2: "end"}, inplace=True)
         df_roi.loc[:, ["chrm", "start", "end"]].merge(df_roi.apply(self._process_homer, axis=1), left_index=True, right_index=True).to_csv(self.homer_roi, index=False, header=None, sep="\t")
         return
 
@@ -121,11 +121,13 @@ class HomerVectorizer:
 
 class GenomeVectorizer(GenomeVocabulary):
     """A class that converts the chromosomal coordinates to numerical encodings"""
-    def __init__(self, genome_fasta, vectorizer, **kwargs):
+    def __init__(self, genome_filepath, vectorizer, **kwargs):
         """
         genome_fasta: A pyfaidx.fasta object as the genome
         vectorizer can be one of ohe, kmer or homer 
         """
+        self.genome_filepath = genome_filepath
+        genome_fasta = Fasta(genome_filepath, as_raw=True)
         super(GenomeVectorizer, self).__init__(genome_fasta)
         # dictionary for ohe vectorizer
         self._ohe_dict = {"A":[1, 0, 0, 0],
@@ -183,20 +185,20 @@ class GenomeVectorizer(GenomeVocabulary):
 
     def homer_featurize(self, **kwargs):
 
-        if "homer_saved" in kwargs:
+        if "homer_saved" in kwargs and kwargs["homer_saved"]:
             homer_saved = kwargs["homer_saved"]
             if os.path.exists(homer_saved):
                 featurized_df = HomerVectorizer.load_features_from_file(homer_saved)
                 print("Loaded saved file ... ")
             else:
-                raise IOError("FileNotFound: Saved file does not exist!")
+                raise IOError(f"FileNotFound: Saved file {homer_saved} does not exist!")
         else:
             # assert that the required arguments for homer featurizer is present
             roi_bed = kwargs["roi_bed"]
             homer_pwm_motifs = kwargs["homer_pwm_motifs"]
             homer_outdir = kwargs["homer_outdir"]
             # run homer to vectorize regions
-            hv = HomerVectorizer(roi_bed, self.genome, homer_pwm_motifs, homer_outdir)
+            hv = HomerVectorizer(roi_bed, self.genome_filepath, homer_pwm_motifs, homer_outdir)
             hv.featurize()
             homer_saved = os.path.join(homer_outdir, "motif_features.csv.gz")
             hv.store_features_to_file(homer_saved)
@@ -206,14 +208,13 @@ class GenomeVectorizer(GenomeVocabulary):
 
     @classmethod
     def load_from_path(cls, genome_filepath, vectorizer, **kwargs):
-        genome_fasta = Fasta(genome_filepath, as_raw=True)
-        return cls(genome_fasta, vectorizer, **kwargs)
+        return cls(genome_filepath, vectorizer, **kwargs)
     
     
 class TFDataset(Dataset):
     """A Class that contains all genomic coordinates with their labels"""
     
-    def __init__(self, tf_df, vectorizer, addn_feat_df):
+    def __init__(self, tf_df, vectorizer, addn_feat_df, task_names, label_name):
         """
         tf_df: A dataframe with 5 columns, chrm, start, end, label, split
         vectorizer: The object that vectorizes this dataset going from genomic coordinates to sequence to numerical encodings
@@ -222,13 +223,14 @@ class TFDataset(Dataset):
         self.tf_df = tf_df
         self._vectorizer = vectorizer
         self.addn_df = addn_feat_df
-        
+        self.task_names = task_names
+        self.label_name = label_name
         self.set_split("train")
         pass
     
     @classmethod
     def load_dataset_and_vectorizer_from_path(
-        cls, tf_df_path, genome_path, addn_feat_path="", nrows=None, vectorizer="ohe", k=5, homer_saved="", homer_pwm_motifs="", homer_outdir=""):
+        cls, tf_df_path, genome_path, task_names=[], label_name="label", addn_feat_path="", nrows=None, vectorizer="ohe", k=5, homer_saved="", homer_pwm_motifs="", homer_outdir=""):
         """
         tf_df_path: path to the tf hdf5 file with genomic locations and annotations  
         genome_path: path to the genome fasta file of the organism
@@ -241,7 +243,7 @@ class TFDataset(Dataset):
             addn_df = addn_df.set_index(addn_df.columns[0])
             assert len(tf_df) == len(addn_df)
         vectorizer = GenomeVectorizer.load_from_path(genome_path, vectorizer=vectorizer, k=k, homer_saved=homer_saved, homer_pwm_motifs=homer_pwm_motifs, homer_outdir=homer_outdir, roi_bed=tf_df_path)
-        return cls(tf_df, vectorizer, addn_df)
+        return cls(tf_df, vectorizer, addn_df, task_names, label_name)
     
     def set_split(self, split="train"):
         self._target_split = split
@@ -260,7 +262,7 @@ class TFDataset(Dataset):
         row = self._target_df.iloc[index]
         chrm, start, end = row.chrm, row.start, row.end
         tf_vector = self._vectorizer.vectorize(row.chrm, row.start, row.end)
-        tf_label = row.label
+        tf_label = {"y_target": row[self.label_name]} if not self.task_names else {tn: row[tn] for tn in self.task_names}
         if not self._target_addn_df.empty:
             seq_id = "_".join([chrm, str(start), str(end)])
             addn_feat = self._target_addn_df.iloc[index]
@@ -271,10 +273,13 @@ class TFDataset(Dataset):
             addn_feat_vector = addn_feat.values.reshape(1, -1)
         else:
             addn_feat_vector = np.array([])
-        return {"x_data": tf_vector,
-                "a_data": addn_feat_vector,
-                "y_target": tf_label,
-                "genome_loc": (chrm, start, end)}
+        ret_dict = {
+            "x_data": tf_vector,
+            "a_data": addn_feat_vector,
+            "genome_loc": (chrm, start, end)
+            }
+        ret_dict.update(tf_label)
+        return ret_dict
     
     def get_num_batches(self, batch_size):
         return len(self) // batch_size
@@ -292,10 +297,12 @@ class TFDataset(Dataset):
         return (4, seq_length) if self._vectorizer.vectorizer_name=="ohe" else self._vectorizer.feature_size
 
 
-def load_data(tf_df_path, genome_fasta, vectorizer, addn_feat_path="", k=5, homer_saved="", homer_pwm_motifs="", homer_outdir=""):
+def load_data(tf_df_path, genome_fasta, vectorizer, task_names=[], label_name="label", addn_feat_path="", k=5, homer_saved="", homer_pwm_motifs="", homer_outdir=""):
     tf_dataset = TFDataset.load_dataset_and_vectorizer_from_path(tf_df_path, 
                                                               genome_fasta,
                                                               addn_feat_path=addn_feat_path,
-                                                              vectorizer=vectorizer, 
+                                                              task_names=task_names,
+                                                              vectorizer=vectorizer,
+                                                              label_name=label_name,
                                                               k=k, homer_saved=homer_saved, homer_pwm_motifs=homer_pwm_motifs, homer_outdir=homer_outdir)
     return tf_dataset

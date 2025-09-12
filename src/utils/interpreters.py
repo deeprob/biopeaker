@@ -86,8 +86,8 @@ def eval_model(args, dataset_split="test"):
     """
 
     # Loading the dataset
-    dataset = load_data(args.dataset, args.genome_fasta, args.vectorizer, addn_feat_path=args.addn_feat_dataset, k=args.k, homer_saved=args.homer_saved, homer_pwm_motifs=args.homer_pwm_motifs, homer_outdir=args.homer_outdir)
-    
+    dataset = load_data(args.dataset, args.genome_fasta, args.vectorizer, label_name=args.label_name, addn_feat_path=args.addn_feat_dataset, k=args.k, homer_saved=args.homer_saved, homer_pwm_motifs=args.homer_pwm_motifs, homer_outdir=args.homer_outdir)
+    print(args.encoder_name, args.classifier_name)
     # Initializing encoder
     if args.encoder:
         encoder = args.encoder()

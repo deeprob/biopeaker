@@ -4,7 +4,7 @@
 import numpy as np
 import torch
 from torch.utils.data import WeightedRandomSampler, RandomSampler, DataLoader
-
+from collections import Counter
 
 class CustomWeightedRandomSampler(WeightedRandomSampler):
     """WeightedRandomSampler except allows for more than 2^24 samples to be sampled"""
@@ -20,15 +20,19 @@ class CustomWeightedRandomSampler(WeightedRandomSampler):
         return iter(rand_tensor.tolist())
     
     
-def get_sampler(dataset, weighted=False, mini=False):
-    
+def get_sampler(dataset, task_names=[], weighted=False, mini=False, multiplier=5):
+    print(task_names)
     mini_samples = 10000
     
     if weighted:
-        # get the sample weights  
-        class_counts = dataset._target_df.label.value_counts().to_dict()
-        num_samples = int(min(len(dataset), 5*(min(class_counts.values()))))
-        labels = dataset._target_df.label.values
+        # get the sample weights
+        if not task_names:
+            labels = dataset._target_df.label.values
+        else:
+            labels = (dataset._target_df[task_names].sum(axis=1)>0).astype(int).values
+
+        class_counts = Counter(labels)
+        num_samples = int(min(len(dataset), multiplier*(min(class_counts.values()))))
         class_weights = [num_samples/class_counts[i] for i in range(len(class_counts))]
         sample_weights = np.array([class_weights[labels[i]] for i in range(int(num_samples))])
 
@@ -52,10 +56,10 @@ def get_sampler(dataset, weighted=False, mini=False):
 def make_train_samplers(dataset, args):
     dataset.set_split('train')
     # generate train sampler
-    train_sampler = get_sampler(dataset, weighted=True, mini=args.pilot)
+    train_sampler = get_sampler(dataset, args.task_names, weighted=True, mini=args.pilot, multiplier=args.multiplier)
     dataset.set_split('valid')
     # generate valid sampler
-    valid_sampler = get_sampler(dataset, weighted=False, mini=args.pilot)
+    valid_sampler = get_sampler(dataset, args.task_names, weighted=False, mini=args.pilot)
     return train_sampler, valid_sampler
 
 

@@ -68,7 +68,7 @@ def initialize_from_cli(cli_args):
         # classifier information
         classifier_name=cli_args.classifier,
         classifier=get_classifier_object(cli_args.classifier),
-        classifier_state_file=f'{cli_args.classifier}.pth',
+        classifier_state_file=f'{cli_args.classifier}.pth' if not cli_args.task_names else {tn: f'{cli_args.classifier}_{tn}.pth' for tn in cli_args.task_names},
         dropout_prob=cli_args.dropout_prob,
         # Training hyper parameters
         batch_size=cli_args.batch_size,
@@ -78,6 +78,7 @@ def initialize_from_cli(cli_args):
         num_epochs=cli_args.num_epochs,
         tolerance=cli_args.tolerance,
         seed=cli_args.random_seed,
+        multiplier=cli_args.multiplier,
         # Runtime options
         catch_keyboard_interrupt=True,
         cuda=True if cli_args.pytorch_device=="cuda" else False,
@@ -87,6 +88,8 @@ def initialize_from_cli(cli_args):
         train_encoder=not cli_args.freeze_encoder,
         test_batch_size=cli_args.test_batch_size,
         interpreter=get_interpreter_object(cli_args.interpreter),
+        task_names=cli_args.task_names,
+        label_name=cli_args.label_name
     )
 
     if not torch.cuda.is_available():
@@ -94,7 +97,10 @@ def initialize_from_cli(cli_args):
 
     if args.expand_filepaths_to_save_dir:
         args.encoder_state_file = os.path.join(args.save_dir, args.encoder_state_file)
-        args.classifier_state_file = os.path.join(args.save_dir, args.classifier_state_file)
+        if not args.task_names:
+            args.classifier_state_file = os.path.join(args.save_dir, args.classifier_state_file)
+        else:
+            args.classifier_state_file = {k: os.path.join(args.save_dir, v) for k,v in args.classifier_state_file.items()}
     
     args.device = torch.device("cuda" if args.cuda else "cpu")
 

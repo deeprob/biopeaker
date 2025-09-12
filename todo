@@ -3,4 +3,5 @@
 3. Train model once with default params - done
 4. Generalize to 1000 or 10000 bp - done
 5. Interpretation add deepshap - done
-6. Add multi-headed atttention 
+6. Add multi-task learning
+7. Add multi-headed atttention 
